@@ -41,6 +41,7 @@ i2c_device_config_t dev_cfg = {
 
 i2c_master_dev_handle_t dev_handle;
 ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle));
+ESP_LOGI(TAG, "i2c_master_bus_add_device success");
 
 ESP_ERROR_CHECK(i2c_master_probe(bus_handle, BME688_SENSOR_ADDR, -1));
 ESP_LOGI(TAG, "i2c_master_probe success");
