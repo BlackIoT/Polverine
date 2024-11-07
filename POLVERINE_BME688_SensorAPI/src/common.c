@@ -67,12 +67,6 @@ if(len < 256)
 }
 else
     return -1;
-
-/*    if(!i2c_master_transmit(dev_handle, &reg_addr, 1, -1))
-        return i2c_master_transmit(dev_handle, reg_data, len, -1);
-    else
-        return 1;    
-*/        
 }
 
 /*!
