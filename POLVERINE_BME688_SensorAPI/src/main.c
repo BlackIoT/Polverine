@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "bme68x.h"
+#include <bme68x.h>
 #include "common.h"
 
 #include "freertos/FreeRTOS.h"
