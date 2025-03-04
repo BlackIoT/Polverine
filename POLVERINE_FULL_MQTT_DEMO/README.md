@@ -52,8 +52,11 @@ Copy the following files from the BME690 SDK tree to the POLVERINE_FULL_MQTT_DEM
 - copy file /algo/bsec_IAQ/bin/esp/esp32_s3/libalgobsec.a into /lib folder
 - copy file /algo/bsec_iaq/inc/bsec_datatypes.h into /include folder
 - copy file /algo/bsec_iaq/inc/bsec_interface.h into /include folder
-- copy file /examples/BSEC_Integration_Examples/examples/bsec_iot_example/bsec_integration.c into /src and patch with patch1.patch
-- copy file /examples/BSEC_Integration_Examples/examples/bsec_iot_example/bsec_integration.h into /src and patch with patch2.patch
+- copy file /examples/BSEC_Integration_Examples/examples/bsec_iot_example/bsec_integration.c into /src and patch with patch1.patch by command:
+    git apply patches/patch1.patch
+- copy file /examples/BSEC_Integration_Examples/examples/bsec_iot_example/bsec_integration.h into /src and patch with patch2.patch by command:
+    git apply patches/patch2.patch
+
 ```
 ### Firmware Customization
 

@@ -1,5 +1,5 @@
---- /home/umbi/Locali/Temp/bme690/bsec_v3-1-0-0/examples/BSEC_Integration_Examples/examples/bsec_iot_example/bsec_integration.h
-+++ /home/umbi/ProgettiESP/POLVERINE_GITHUB/Polverine/POLVERINE_FULL_MQTT_DEMO/src/bsec_integration.h
+--- ./bsec_integration.h
++++ ./bsec_integration.h
 @@ -77,7 +77,7 @@
  #include "bsec_interface.h"
  #include "bsec_datatypes.h"
