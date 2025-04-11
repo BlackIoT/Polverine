@@ -8,7 +8,7 @@
 
 const char *TAG = "mqtt_polverine";
 
-const char *TEMPLATE_POLVERINE_MQTT = "{\"uri\":\"mqtt://mqttserver.local\",\"user\":\"username\",\"pwd\":\"userpassword\",\"clientid\":\"%s\"}";
+const char *TEMPLATE_POLVERINE_MQTT = "{\"uri\":\"mqtt://192.168.1.128\",\"user\":\"mqttmaster\",\"pwd\":\"mqttpassword\",\"clientid\":\"%s\"}"; // local MQTT broker 
 const char *TEMPLATE_POLVERINE_TOPIC = "{\"bmv080\":\"polverine/%s/bmv080\",\"bme690\":\"polverine/%s/bme690\",\"cmd\":\"polverine/%s/cmd\"}";
 
 #define DEFAULT_LEN 256
