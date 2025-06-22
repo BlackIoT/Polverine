@@ -617,7 +617,54 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI(TAG, "Will attempt to reconnect in 2 seconds...");
         vTaskDelay(pdMS_TO_TICKS(2000));
         
-        ESP_LOGI(TAG, "Attempting to reconnect to MQTT broker...");
+        // Get MQTT configuration for detailed logging
+        cJSON *uri_item = cJSON_GetObjectItemCaseSensitive(mqtt, "uri");
+        cJSON *user_item = cJSON_GetObjectItemCaseSensitive(mqtt, "user");
+        cJSON *pwd_item = cJSON_GetObjectItemCaseSensitive(mqtt, "pwd");
+        cJSON *clientid_item = cJSON_GetObjectItemCaseSensitive(mqtt, "clientid");
+        
+        if (uri_item && user_item && pwd_item && clientid_item) {
+            ESP_LOGI(TAG, "Attempting to reconnect to MQTT broker...");
+            ESP_LOGI(TAG, "  Broker URI: %s", uri_item->valuestring);
+            ESP_LOGI(TAG, "  Username: %s", user_item->valuestring);
+            ESP_LOGI(TAG, "  Password: %s", pwd_item->valuestring);
+            ESP_LOGI(TAG, "  Client ID: %s", clientid_item->valuestring);
+            
+            // Parse URI to show host and port separately
+            const char *uri = uri_item->valuestring;
+            if (strncmp(uri, "mqtt://", 7) == 0) {
+                const char *host_port = uri + 7;
+                char *colon = strchr(host_port, ':');
+                if (colon) {
+                    char host[256];
+                    int host_len = colon - host_port;
+                    strncpy(host, host_port, host_len);
+                    host[host_len] = '\0';
+                    const char *port = colon + 1;
+                    ESP_LOGI(TAG, "  Host: %s, Port: %s", host, port);
+                } else {
+                    ESP_LOGI(TAG, "  Host: %s, Port: 1883 (default)", host_port);
+                }
+            } else if (strncmp(uri, "mqtts://", 8) == 0) {
+                const char *host_port = uri + 8;
+                char *colon = strchr(host_port, ':');
+                if (colon) {
+                    char host[256];
+                    int host_len = colon - host_port;
+                    strncpy(host, host_port, host_len);
+                    host[host_len] = '\0';
+                    const char *port = colon + 1;
+                    ESP_LOGI(TAG, "  Host: %s, Port: %s (TLS)", host, port);
+                } else {
+                    ESP_LOGI(TAG, "  Host: %s, Port: 8883 (default TLS)", host_port);
+                }
+            } else {
+                ESP_LOGI(TAG, "  URI format: %s", uri);
+            }
+        } else {
+            ESP_LOGE(TAG, "MQTT configuration incomplete, cannot log connection details");
+        }
+        
         esp_err_t err = esp_mqtt_client_reconnect(client);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initiate reconnection: %s", esp_err_to_name(err));
@@ -671,7 +718,46 @@ void mqtt_app_start(void)
     mqtt_cfg.network.timeout_ms = 10000;
     mqtt_cfg.session.keepalive = 30;  // Increased for better stability
     
-    ESP_LOGI(TAG, "MQTT client configuration prepared, broker URI: %s", mqtt_cfg.broker.address.uri);
+    // Log detailed connection information
+    ESP_LOGI(TAG, "MQTT client configuration prepared:");
+    ESP_LOGI(TAG, "  Broker URI: %s", mqtt_cfg.broker.address.uri);
+    ESP_LOGI(TAG, "  Username: %s", mqtt_cfg.credentials.username);
+    ESP_LOGI(TAG, "  Password: %s", mqtt_cfg.credentials.authentication.password);
+    ESP_LOGI(TAG, "  Client ID: %s", mqtt_cfg.credentials.client_id);
+    ESP_LOGI(TAG, "  Keepalive: %d seconds", mqtt_cfg.session.keepalive);
+    ESP_LOGI(TAG, "  Timeout: %d ms", mqtt_cfg.network.timeout_ms);
+    
+    // Parse URI to show host and port separately
+    const char *uri = mqtt_cfg.broker.address.uri;
+    if (strncmp(uri, "mqtt://", 7) == 0) {
+        const char *host_port = uri + 7;
+        char *colon = strchr(host_port, ':');
+        if (colon) {
+            char host[256];
+            int host_len = colon - host_port;
+            strncpy(host, host_port, host_len);
+            host[host_len] = '\0';
+            const char *port = colon + 1;
+            ESP_LOGI(TAG, "  Host: %s, Port: %s", host, port);
+        } else {
+            ESP_LOGI(TAG, "  Host: %s, Port: 1883 (default)", host_port);
+        }
+    } else if (strncmp(uri, "mqtts://", 8) == 0) {
+        const char *host_port = uri + 8;
+        char *colon = strchr(host_port, ':');
+        if (colon) {
+            char host[256];
+            int host_len = colon - host_port;
+            strncpy(host, host_port, host_len);
+            host[host_len] = '\0';
+            const char *port = colon + 1;
+            ESP_LOGI(TAG, "  Host: %s, Port: %s (TLS)", host, port);
+        } else {
+            ESP_LOGI(TAG, "  Host: %s, Port: 8883 (default TLS)", host_port);
+        }
+    } else {
+        ESP_LOGI(TAG, "  URI format: %s", uri);
+    }
     
     client = esp_mqtt_client_init(&mqtt_cfg);
     if (client == NULL) {
@@ -683,6 +769,7 @@ void mqtt_app_start(void)
     
     mqtt_connection_start_time = xTaskGetTickCount();
     
+    ESP_LOGI(TAG, "Attempting initial connection to MQTT broker...");
     esp_err_t err = esp_mqtt_client_start(client);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(err));
