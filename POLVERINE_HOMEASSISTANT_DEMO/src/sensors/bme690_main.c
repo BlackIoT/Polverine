@@ -1,4 +1,3 @@
-
 /*!
  * @file bsec_iot_example.c
  *
@@ -311,6 +310,15 @@ static void output_ready(outputs_t *output)
 {
 static char* buffer[600];
 static uint8_t last_iaq_accuracy = 0;
+static uint32_t startup_time = 0;
+static bool first_output = true;
+
+  if (first_output) {
+      startup_time = xTaskGetTickCount() * portTICK_PERIOD_MS / 1000;
+      first_output = false;
+      ESP_LOGI("BME690", "First BSEC output received - starting calibration period");
+  }
+
   //gpio_set_level(G_LED_PIN, 1);
   //gpio_hold_en(G_LED_PIN);
   //gpio_deep_sleep_hold_en();
@@ -322,6 +330,25 @@ static uint8_t last_iaq_accuracy = 0;
   sb_add(&aveACC,output->iaq_accuracy);
   sb_add(&aveCO2,output->co2_equivalent);
   sb_add(&aveVOC,output->breath_voc_equivalent);
+  
+  // Log detailed status information
+  uint32_t uptime = (xTaskGetTickCount() * portTICK_PERIOD_MS / 1000) - startup_time;
+  
+  // Log accuracy status with meaning
+  const char* accuracy_desc = "Unknown";
+  switch(output->iaq_accuracy) {
+      case 0: accuracy_desc = "Stabilizing"; break;
+      case 1: accuracy_desc = "Low"; break;
+      case 2: accuracy_desc = "Medium"; break;
+      case 3: accuracy_desc = "High"; break;
+  }
+  
+  // Log stabilization and run-in status
+  const char* stab_status = output->stabStatus ? "Stabilized" : "Stabilizing";
+  const char* runin_status = output->runInStatus ? "Complete" : "Running";
+  
+  ESP_LOGI("BME690", "Uptime: %lu s, Accuracy: %d (%s), Stabilization: %s, Run-in: %s", 
+           (unsigned long)uptime, output->iaq_accuracy, accuracy_desc, stab_status, runin_status);
   
   // Force save when IAQ accuracy improves
   if (output->iaq_accuracy > last_iaq_accuracy) {
@@ -355,6 +382,8 @@ static uint8_t last_iaq_accuracy = 0;
                 output->compensated_temperature, output->raw_pressure, output->compensated_humidity);
         ESP_LOGI("BME690", "IAQ: %.2f (acc: %d), CO2: %.2f ppm, VOC: %.2f ppm", 
                 (float)output->iaq, output->iaq_accuracy, output->co2_equivalent, output->breath_voc_equivalent);
+        ESP_LOGI("BME690", "Raw gas: %.2f ohms, Gas percentage: %.2f%%, Static IAQ: %.2f", 
+                output->raw_gas, output->gas_percentage, output->static_iaq);
     } 
     else if(PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080 && flBMV080Published)
     {
@@ -374,6 +403,8 @@ static uint8_t last_iaq_accuracy = 0;
                 sb_average(&aveT), sb_average(&aveP), sb_average(&aveH));
         ESP_LOGI("BME690", "Averaged - IAQ: %.2f (acc: %.0f), CO2: %.2f ppm, VOC: %.2f ppm", 
                 sb_average(&aveIAQ), sb_average(&aveACC), sb_average(&aveCO2), sb_average(&aveVOC));
+        ESP_LOGI("BME690", "Raw gas: %.2f ohms, Gas percentage: %.2f%%, Static IAQ: %.2f", 
+                output->raw_gas, output->gas_percentage, output->static_iaq);
                 
         flBMV080Published = false;
         //demult = 0;
