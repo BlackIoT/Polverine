@@ -229,7 +229,7 @@ static void send_ha_discovery()
         "\"name\":\"VOC\","
         "\"state_topic\":\"%s\","
         "\"availability_topic\":\"%s\","
-        "\"device_class\":\"volatile_organic_compounds\","
+        "\"device_class\":\"volatile_organic_compounds_parts\","
         "\"unit_of_measurement\":\"ppm\","
         "\"value_template\":\"{{ value_json.voc }}\","
         "\"device\":%s}",
