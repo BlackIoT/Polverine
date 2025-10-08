@@ -9,6 +9,12 @@ A PC with Linux or Windows, and an USB-C cable is all you need to program the Po
 
 For more information and Polverine FAQ go to our [website](https://www.blackiot.swiss/polverine_faq).
 
+## 3D Printed Cover
+Various version of 3D printable are availble from the community. 
+
+
+
+
 ## Visual Studio Code with PlatformIO
 Visual Studio Code can be freely downloaded and from the [CODE site](https://code.visualstudio.com/)
 Once installed on your PC, select and install PlatformIO from the "Extensions Marketplace".
