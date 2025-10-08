@@ -7,12 +7,14 @@ We support programming the Polverine board on Linux and Windows 11 OSs.
 
 A PC with Linux or Windows, and an USB-C cable is all you need to program the Polverine board.
 
-For more information and Polverine FAQ go to our [website](https://www.blackiot.swiss/polverine_faq).
+For more information and Polverine FAQ go to our 
 
 ## 3D Printed Cover
-Various version of 3D printable are availble from the community. 
+Various version of 3D printable are availble from the community:
 
-
+- [Makerworld mode from skunkyprototypes](https://makerworld.com/en/models/1806923-blackiot-polverine-cover#profileId-1988748).
+    
+![Polverine Cover](images/polverinecover.png)
 
 
 ## Visual Studio Code with PlatformIO
