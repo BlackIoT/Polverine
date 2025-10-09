@@ -54,7 +54,7 @@ static const char *TAG = "power_management";
         esp_pm_config_t pm_config = {
             .max_freq_mhz = 160,
             .min_freq_mhz = 80,
-            .light_sleep_enable = false  // Disable light sleep to improve WiFi stability
+            .light_sleep_enable = true  // Enable light sleep with WiFi power save
         };
 
         esp_err_t err = esp_pm_configure(&pm_config);

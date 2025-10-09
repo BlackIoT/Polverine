@@ -239,6 +239,12 @@ void wifi_start(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_LOGI(TAG, "Starting WiFi...");
     ESP_ERROR_CHECK(esp_wifi_start());
+    
+    // Enable WiFi power save mode for better light sleep compatibility
+    ESP_LOGI(TAG, "Enabling WiFi power save mode...");
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM));
+    ESP_LOGI(TAG, "WiFi power save mode enabled");
+    
     ESP_LOGI(TAG, "WiFi started successfully");
 }
 
