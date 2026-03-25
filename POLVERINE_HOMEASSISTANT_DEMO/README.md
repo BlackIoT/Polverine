@@ -59,22 +59,22 @@ The folder "bsec_library_v3.x" should have at least the following subfolders and
 
 To make the application work correctly in your environment you must customize some settings:
 
-#### WiFi connection configuration
+#### WiFi & MQTT connection configuration
 
-- in the file /src/wifi_connect.c must replace the dummy xxxxxxxxx in DEFAUT_POLVERINE_WIFI with actual values, for example:
+In `platformio.ini` find where the build flags are supplied, and add the following:
 
-		const char *DEFAULT_POLVERINE_WIFI = "{\"ssid\":\"AccessPointID\",\"pwd\":\"AccessPointPassword\"}";
+```
+build_flags =
+    ...
+    -DDEFAULT_WIFI_SSID="\"Your Wifi SSID\""
+    -DDEFAULT_WIFI_PASS="\"your wifi password\""
+    -DDEFAULT_MQTT_URI="\"mqtt://ip.or.url.of.your.mqtt.broker\""
+    -DDEFAULT_MQTT_USER="\"username\""
+    -DDEFAULT_MQTT_PASS="\"password\""
+```
 
-#### MQTT connection configuration
-
-- in the file /src/mqtt_main.c must replace the dummy xxxxxxxxx in TEMPLATE_POLVERINE_MQTT with actual values, for example:
-
-		const char *TEMPLATE_POLVERINE_MQTT = "{\"uri\":\"mqtt://mqttserver.local\",\"user\":\"username\",\"pwd\":\"userpassword\",\"clientid\":\"%s\"}";
-
-	- uri : MQTT broker address
-	- user : username to have access to MQTT broker
-	- pwd : password assigned to the user
-	- clientid : you can use the %s placeholder to have a unique ID or specify your own .
+Note that the MQTT user and pass arguments cannot be left empty! This will cause the MQTT connection to fail.
+If you don't use authentication for your MQTT broker, you can enter dummy values here and they will be ignored.
 
 - you can customize MQTT topics changing the values in TEMPLATE_POLVERINE_TOPIC .
 
@@ -101,3 +101,17 @@ The POLVERINE_FULL_MQTT_DEMO puts the ESP32-S3 MCU in low power mode that disabl
 
 
 When in bootloader mode the RGB led is lit.
+
+### Firmware Debugging
+
+Debugging over USB works fine using platformio Upload and Monitor, except when the device
+goes into power saving mode and drops the connection. To prevent that, modify main.c,
+
+```
+         esp_pm_config_t pm_config = {
+             .max_freq_mhz = 160,
+             .min_freq_mhz = 80,
+-            .light_sleep_enable = true  // Enable light sleep with WiFi power save
++            .light_sleep_enable = false  // Disable light sleep with WiFi power save
+         };
+```
