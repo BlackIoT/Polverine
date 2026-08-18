@@ -140,7 +140,7 @@ void bme690_task(void *)
     printf("BSEC Version : %u.%u.%u.%u\r\n",version.major,version.minor,version.major_bugfix,version.minor_bugfix);
 /*
 #if (OUTPUT_MODE == IAQ)
-    static char *header = "Time(ms), IAQ,  IAQ_accuracy, Static_IAQ, Raw_Temperature(degC), Raw_Humidity(%%rH), Comp_Temperature(degC),  Comp_Humidity(%%rH), Raw_pressure(Pa), Raw_Gas(ohms), Gas_percentage, CO2, bVOC, Stabilization_status, Run_in_status, Bsec_status\r\n";
+    static char *header = "Time(ms), IAQ,  IAQ_accuracy, Static_IAQ, Raw_Temperature(degC), Raw_Humidity(%%rH), Comp_Temperature(degC),  Comp_Humidity(%%rH), Raw_pressure(Pa), Raw_Gas(ohms), Gas_percentage, CO2, TVOC(ppb), Stabilization_status, Run_in_status, Bsec_status\r\n";
 #else
     static char *header = "Time(ms), Class/Target_1_prediction, Class/Target_2_prediction, Class/Target_3_prediction, Class/Target_4_prediction, Prediction_accuracy_1, Prediction_accuracy_2, Prediction_accuracy_3, Prediction_accuracy_4, Raw_pressure(Pa), Raw_Temperature(degC),  Raw_Humidity(%%rH), Raw_Gas(ohm), Raw_Gas_Index(num), Bsec_status\r\n";
 #endif
@@ -380,7 +380,7 @@ static bool first_output = true;
         // Log the sensor values
         ESP_LOGI("BME690", "Temperature: %.2f°C, Pressure: %.2f Pa, Humidity: %.2f%%", 
                 output->compensated_temperature, output->raw_pressure, output->compensated_humidity);
-        ESP_LOGI("BME690", "IAQ: %.2f (acc: %d), CO2: %.2f ppm, VOC: %.2f ppm", 
+        ESP_LOGI("BME690", "IAQ: %.2f (acc: %d), CO2: %.2f ppm, VOC: %.2f ppb", 
                 (float)output->iaq, output->iaq_accuracy, output->co2_equivalent, output->tvoc_equivalent);
         ESP_LOGI("BME690", "Raw gas: %.2f ohms, Gas percentage: %.2f%%, Static IAQ: %.2f", 
                 output->raw_gas, output->gas_percentage, output->static_iaq);
@@ -401,7 +401,7 @@ static bool first_output = true;
         // Log the averaged sensor values
         ESP_LOGI("BME690", "Averaged - Temp: %.2f°C, Press: %.2f Pa, Hum: %.2f%%", 
                 sb_average(&aveT), sb_average(&aveP), sb_average(&aveH));
-        ESP_LOGI("BME690", "Averaged - IAQ: %.2f (acc: %.0f), CO2: %.2f ppm, VOC: %.2f ppm", 
+        ESP_LOGI("BME690", "Averaged - IAQ: %.2f (acc: %.0f), CO2: %.2f ppm, VOC: %.2f ppb", 
                 sb_average(&aveIAQ), sb_average(&aveACC), sb_average(&aveCO2), sb_average(&aveVOC));
         ESP_LOGI("BME690", "Raw gas: %.2f ohms, Gas percentage: %.2f%%, Static IAQ: %.2f", 
                 output->raw_gas, output->gas_percentage, output->static_iaq);

@@ -153,13 +153,30 @@ Everything else here is yours, staged locally, and stays out of git.
   So the four demos now read `output->tvoc_equivalent`, 3.3.0.0's replacement,
   which is subscribed automatically in LP mode. **The published JSON field is
   still named `VOC`** so existing Node-RED flows and MongoDB collections keep
-  working — but it now carries TVOC, not breath-VOC. The two are not the same
-  quantity; relabel your dashboards accordingly.
+  parsing — but the quantity AND THE UNIT both changed:
+
+  | | BSEC output | unit |
+  |---|---|---|
+  | before (3.2.1.0) | `BSEC_OUTPUT_BREATH_VOC_EQUIVALENT` | **ppm** |
+  | now (3.3.0.0) | `BSEC_OUTPUT_TVOC_EQUIVALENT` | **ppb** |
+
+  That is a 1000x change in magnitude in a field that kept its name. Anything
+  downstream that assumed ppm — dashboards, alert thresholds, stored history —
+  must be rescaled or relabelled. The Home Assistant discovery message was
+  updated to declare `ppb` (`POLVERINE_HOMEASSISTANT_DEMO/src/connectivity/mqtt_main.c`);
+  the `nodered/` flows and `mongodb/` schema in the parent demo were **not**
+  touched and still assume ppm.
 
   `--with-breath-voc` is kept only for building against BSEC 3.2.x.
 - **Stored BSEC state.** `BSEC_MAX_STATE_BLOB_SIZE` shrank from 201 to 197 and
   `BSEC_MAX_PROPERTY_BLOB_SIZE` from 554 to 550. `POLVERINE_HOMEASSISTANT_DEMO`
-  persists BSEC state in NVS; a blob written by BSEC 3.2.1.0 can make
-  `bsec_set_state()` return `BSEC_E_CONFIG_VERSIONMISMATCH`, which that demo
-  treats as fatal for the BME690 task. **Erase NVS once when upgrading**
-  (`pio run -t erase`, or `idf.py erase-flash`).
+  is the only demo that persists BSEC state in NVS (the other three have empty
+  Bosch stubs). A blob written by BSEC 3.2.1.0 is **not** fatal: either
+  `nvs_get_blob` rejects it on length and `state_load()` returns 0 so
+  `bsec_set_state()` is never called, or it is applied and returns
+  `BSEC_E_CONFIG_VERSIONMISMATCH`, whose status `bsec_iot_init()` then
+  overwrites with the `update_subscription()` result — so the demo's error gate
+  never sees it. Either way the old calibration is **silently discarded** and
+  the sensor restarts its run-in. **Erase NVS once when upgrading**
+  (`pio run -t erase`, or `idf.py erase-flash`) so this is explicit rather than
+  silent.

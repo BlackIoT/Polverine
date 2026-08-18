@@ -230,7 +230,9 @@ static void send_ha_discovery()
         "\"state_topic\":\"%s\","
         "\"availability_topic\":\"%s\","
         "\"device_class\":\"volatile_organic_compounds_parts\","
-        "\"unit_of_measurement\":\"ppm\","
+        /* TVOC (BSEC 3.3.0.0 BSEC_OUTPUT_TVOC_EQUIVALENT) is ppb, unlike the
+         * breath-VOC [ppm] this replaced. Do not "fix" this back to ppm. */
+        "\"unit_of_measurement\":\"ppb\","
         "\"value_template\":\"{{ value_json.voc }}\","
         "\"device\":%s}",
         shortId, bme690_state_topic, availability_topic, device_str);
