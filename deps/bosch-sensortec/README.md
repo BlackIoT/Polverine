@@ -110,6 +110,14 @@ means staging is complete. Then confirm nothing leaked into git:
 
 ```bash
 git status --short          # must not list anything under deps/bosch-sensortec/
+```
+
+A build also rewrites the tracked `sdkconfig.polverine` of whichever demo you
+built (PlatformIO stamps its own ESP-IDF version into it), so `git status` will
+usually show that file as modified. That is expected and unrelated to staging —
+`git checkout -- <demo>/sdkconfig.polverine` if you want a clean tree.
+
+```bash
 git check-ignore -v deps/bosch-sensortec/bsec_library_wrappers/bsec_integration.c
 ```
 

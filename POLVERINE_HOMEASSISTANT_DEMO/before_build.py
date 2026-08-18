@@ -34,7 +34,9 @@ def check_deps(prj_dir:str):
                 ],
 
             'wheretoget':'https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/sdk-v11-2.html',
-            'howto':'Unzip the BMV080 SDK and rename its top folder to "BMV080-SDK" under deps/bosch-sensortec/.\n'
+            'howto':'Unzip the BMV080 SDK straight into deps/bosch-sensortec/BMV080-SDK/ -- the zip has no top folder to rename:\n'
+                    '  unzip -q <bmv080-sdk-*.zip> -d deps/bosch-sensortec/BMV080-SDK\n'
+                    'That directory must then directly contain api/ and LICENSE.md.\n'
                     'See deps/bosch-sensortec/README.md for the full staging procedure.'
         },
         {
@@ -49,7 +51,8 @@ def check_deps(prj_dir:str):
                 '../deps/bosch-sensortec/bsec_library_v3.x/examples/BME690/examples/bsec_iot_example/bsec_integration.h',
                 ],
             'wheretoget':'https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/bsec-software-3-3-0-0-form.html',
-            'howto':'Unzip BSEC 3.3.0.0 and rename its top folder to "bsec_library_v3.x" under deps/bosch-sensortec/.\n'
+            'howto':'Unzip BSEC 3.3.0.0 straight into deps/bosch-sensortec/bsec_library_v3.x/ -- the zip has no top folder to rename:\n'
+                    '  unzip -q <bsec_v3-3-0-0.zip> -d deps/bosch-sensortec/bsec_library_v3.x\n'
                     'That folder must be the ROOT of the zip, i.e. it must directly contain release_bin/ and examples/.\n'
                     'NOTE: BSEC 3.2.1.0 and older used algo/bsec_IAQ/ instead of release_bin/IAQ/ and will NOT work.\n'
                     'See deps/bosch-sensortec/README.md for the full staging procedure.'
