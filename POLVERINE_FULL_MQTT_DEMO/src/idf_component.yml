@@ -1,0 +1,12 @@
+## IDF Component Manager dependencies for the application component.
+##
+## ESP-IDF v6.0 moved esp-mqtt and cJSON out of the core tree into the
+## component registry.  Under IDF 5.x these were the built-in `mqtt` and
+## `json` components and needed no manifest; from v6.0 they must be declared
+## here or `mqtt_client.h` / `cJSON.h` are not found.
+## Component names after install: `mqtt` and `cjson`.
+dependencies:
+  espressif/mqtt: "^1.0.0"
+  espressif/cjson: "^1.7.19"
+  idf:
+    version: ">=5.4"

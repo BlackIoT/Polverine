@@ -4,7 +4,6 @@
 #include "peripherals.h"
 #include "bmv080.h"
 #include "bmv080_io.h"
-#include "mqtt_client.h"
 #include "driver/temperature_sensor.h"
 #include "leds.h"
 #include "polverine_cfg.h"
@@ -57,7 +56,7 @@ void bmv080_task(void *pvParameter)
 	int32_t commits_ahead = 0;
 
   bmv080_delay(1000);
-  printf("\r\BMV080 demo starting on %s\r\n",shortId);
+  printf("\r\nBMV080 demo starting on %s\r\n",shortId);
 
   bmv080_status_code_t bmv080_current_status = E_BMV080_OK;
   bmv080_current_status = bmv080_get_driver_version(&major, &minor, &patch, git_hash, &commits_ahead);

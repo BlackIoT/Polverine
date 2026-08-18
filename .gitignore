@@ -46,3 +46,8 @@ deps/bosch-sensortec/bsec_library_wrappers/*
 # Python bytecode from apply_polverine_patches.py
 __pycache__/
 *.pyc
+
+# ESP-IDF component manager (IDF 6.0 moved mqtt/cJSON/mdns out of the core into
+# the registry). Downloaded components are build artefacts and are re-fetched
+# from dependencies.lock, which IS tracked for reproducible builds.
+managed_components/

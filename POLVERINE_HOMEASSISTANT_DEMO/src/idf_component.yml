@@ -1,0 +1,10 @@
+## IDF Component Manager Manifest File
+##
+## ESP-IDF 6.0 removed the in-tree `mqtt` (esp-mqtt) and `json` (cJSON)
+## components; they are now managed components pulled from the ESP Component
+## Registry.  Both are used by this demo, so they have to be declared here.
+dependencies:
+  espressif/mqtt: "^1.0.0"
+  espressif/cjson: "^1.7.19"
+  idf:
+    version: ">=5.3"

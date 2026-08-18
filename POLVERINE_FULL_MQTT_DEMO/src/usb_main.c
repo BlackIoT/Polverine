@@ -1,5 +1,9 @@
 #include "esp_log.h"
 #include "driver/usb_serial_jtag.h"
+/* IDF v6.0: driver headers no longer pull in the FreeRTOS API transitively;
+   portMAX_DELAY / vTaskDelay / xTaskCreate need explicit includes. */
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <stdio.h>
 #include <string.h>
 

@@ -283,7 +283,7 @@
      for(;;){
          vTaskDelay(50 / portTICK_PERIOD_MS);
          if(xQueueReceive(cmd_cmd_queue, &cmd_id, portMAX_DELAY)) {
-             esp_log_buffer_char(GATTS_TABLE_TAG,(char *)(cmd_id),strlen((char *)cmd_id));
+             ESP_LOG_BUFFER_CHAR(GATTS_TABLE_TAG,(char *)(cmd_id),strlen((char *)cmd_id));
              free(cmd_id);
          }
      }

@@ -14,7 +14,6 @@
 #include "peripherals.h"
 #include "bmv080.h"
 #include "bmv080_io.h"
-#include "mqtt_client.h"
 #include "driver/temperature_sensor.h"
 #include "ble_main.h"
 #include "polverine_cfg.h"
