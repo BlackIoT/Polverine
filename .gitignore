@@ -22,6 +22,27 @@
 *.app
 *.elf
 
-# BOSCH SDK
-deps/bosch-sensortec/BMV080-SDK/
-deps/bosch-sensortec/bsec_library_v3.x/
+# ---------------------------------------------------------------------------
+# Bosch Sensortec material (licence-gated) - deny by default, allow by name.
+#
+# Everything staged under deps/bosch-sensortec/ is ignored by SHAPE, so any SDK
+# version dropped in under any directory name can never be committed by
+# accident.  Only the entries re-allowed below are tracked, each for a stated
+# reason.  bsec_integration.{c,h} are deliberately NOT re-allowed: they derive
+# from Bosch example code ("All Rights Reserved. Confidential.") and are
+# generated locally by bsec_library_wrappers/apply_polverine_patches.py from
+# your own BSEC download.  See deps/bosch-sensortec/README.md.
+# ---------------------------------------------------------------------------
+deps/bosch-sensortec/*
+!deps/bosch-sensortec/README.md
+!deps/bosch-sensortec/BME690_SensorAPI/
+!deps/bosch-sensortec/bsec_library_wrappers/
+
+deps/bosch-sensortec/bsec_library_wrappers/*
+!deps/bosch-sensortec/bsec_library_wrappers/README.md
+!deps/bosch-sensortec/bsec_library_wrappers/bsec_temp_offset_tab_target_board.h
+!deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py
+
+# Python bytecode from apply_polverine_patches.py
+__pycache__/
+*.pyc

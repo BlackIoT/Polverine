@@ -76,12 +76,22 @@ The green rectangle contains the correct GDB startup messages.
 
 The demos in this repository that communicate with the Bosch BME690 & BMV080 sensors need to use the SDKs published by Bosch Sensortec.
 
-The SDKs source code and compiled libraries cannot be stored in this repository, but must be downloaded by the user from the Bosch website by accepting the licence agreement.
+The SDK sources and compiled libraries are licence-gated and cannot be stored in this repository. You must download them yourself from the Bosch website, accepting the licence agreement, and stage them under `deps/bosch-sensortec/`.
 
-- [BMV080 SDK r.11.2.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/sdk-v11-2.html)
-- [BME690 BSEC r.3.2.1](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/bsec-software-3-2-1-0-form.html)
+- [BMV080 SDK r.11.2.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/sdk-v11-2.html) - unzip into `deps/bosch-sensortec/BMV080-SDK/`
+- [BME690 BSEC r.3.3.0.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/bsec-software-3-3-0-0-form.html) - unzip into `deps/bosch-sensortec/bsec_library_v3.x/`
 
-Each project that uses the Bosch SDKs will contain a README file with instruction for copying needed files from Bosch file tree into the project source tree.
+The same rule applies to `bsec_integration.c` / `bsec_integration.h`: they derive from Bosch example code, so this repository ships only BlackIoT's modifications and a script that regenerates the files from your own BSEC download:
+
+```
+python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py
+```
+
+**Full step-by-step staging instructions: [deps/bosch-sensortec/README.md](/deps/bosch-sensortec/README.md).**
+
+The sensor demos refuse to build until staging is complete; `before_build.py` names the exact missing file and how to obtain it.
+
+> BSEC **3.2.1.0 and older will not build**. The library tree moved from `algo/bsec_IAQ/` to `release_bin/IAQ/` in 3.3.0.0, and the demos are built against the 3.3.0.0 wrapper API.
 
 ## The Demos
 
