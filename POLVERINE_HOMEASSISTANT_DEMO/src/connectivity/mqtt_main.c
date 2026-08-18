@@ -69,7 +69,7 @@ void mqtt_default_init(const char *id)
 
 void mqtt_store_read(void)
 {
-    polverine_mqtt_config_t config;
+    polverine_mqtt_config_t config = {0};   /* never hand uninitialised bytes to esp-mqtt */
     
     if (config_load_mqtt(&config, shortId)) {
         // Create JSON from loaded config
