@@ -329,7 +329,7 @@ static bool first_output = true;
   sb_add(&aveIAQ,output->iaq);
   sb_add(&aveACC,output->iaq_accuracy);
   sb_add(&aveCO2,output->co2_equivalent);
-  sb_add(&aveVOC,output->breath_voc_equivalent);
+  sb_add(&aveVOC,output->tvoc_equivalent);
   
   // Log detailed status information
   uint32_t uptime = (xTaskGetTickCount() * portTICK_PERIOD_MS / 1000) - startup_time;
@@ -371,7 +371,7 @@ static bool first_output = true;
                 "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}\n",
                 shortId,
                 (float)(output->timestamp/1000000)/1000., output->compensated_temperature, output->raw_pressure, output->compensated_humidity,
-                (float)output->iaq, (float)output->iaq_accuracy, output->co2_equivalent, output->breath_voc_equivalent,
+                (float)output->iaq, (float)output->iaq_accuracy, output->co2_equivalent, output->tvoc_equivalent,
                 output->static_iaq, output->gas_percentage, output->stabStatus, output->runInStatus,
                 extTempOffset, PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080, PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS);
 
@@ -381,7 +381,7 @@ static bool first_output = true;
         ESP_LOGI("BME690", "Temperature: %.2f°C, Pressure: %.2f Pa, Humidity: %.2f%%", 
                 output->compensated_temperature, output->raw_pressure, output->compensated_humidity);
         ESP_LOGI("BME690", "IAQ: %.2f (acc: %d), CO2: %.2f ppm, VOC: %.2f ppm", 
-                (float)output->iaq, output->iaq_accuracy, output->co2_equivalent, output->breath_voc_equivalent);
+                (float)output->iaq, output->iaq_accuracy, output->co2_equivalent, output->tvoc_equivalent);
         ESP_LOGI("BME690", "Raw gas: %.2f ohms, Gas percentage: %.2f%%, Static IAQ: %.2f", 
                 output->raw_gas, output->gas_percentage, output->static_iaq);
     } 
@@ -419,7 +419,7 @@ static bool first_output = true;
     printf("%ld,%f,%u,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\r\n", (uint32_t)(output->timestamp/1000000),
                 output->iaq, output->iaq_accuracy, output->static_iaq, output->raw_temp, output->raw_humidity, output->compensated_temperature,
                 output->compensated_humidity, output->raw_pressure, output->raw_gas, output->gas_percentage, output->co2_equivalent,
-                output->breath_voc_equivalent, output->stabStatus, output->runInStatus);
+                output->tvoc_equivalent, output->stabStatus, output->runInStatus);
 #else
     printf("%ld,%f,%f,%f,%f,%u,%u,%u,%u,%f,%f,%f,%f,%u\r\n", (uint32_t)(output->timestamp/1000000),
                 output->gas_estimate_1, output->gas_estimate_2, output->gas_estimate_3, output->gas_estimate_4,

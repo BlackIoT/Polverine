@@ -234,14 +234,14 @@ static char* buffer[600];
   sb_add(&aveIAQ,output->iaq);
   sb_add(&aveACC,output->iaq_accuracy);
   sb_add(&aveCO2,output->co2_equivalent);
-  sb_add(&aveVOC,output->breath_voc_equivalent);
+  sb_add(&aveVOC,output->tvoc_equivalent);
 
     if (!PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080) {
         snprintf((char * __restrict__)buffer,600,"{\"topic\":\"bme690\",\"data\":{\"ID\":\"%s\",\"R\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
                 "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}}\n",
                 shortId,
                 (float)(output->timestamp/1000000)/1000., output->compensated_temperature, output->raw_pressure, output->compensated_humidity,
-                (float)output->iaq, (float)output->iaq_accuracy, output->co2_equivalent, output->breath_voc_equivalent,
+                (float)output->iaq, (float)output->iaq_accuracy, output->co2_equivalent, output->tvoc_equivalent,
                 extTempOffset, PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080, PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS);
 
         printf((const char *)buffer);

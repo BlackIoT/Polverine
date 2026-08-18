@@ -136,15 +136,27 @@ Everything else here is yours, staged locally, and stays out of git.
 
 ## Notes on the 3.3.0.0 upgrade
 
-- **Breath VOC.** Bosch dropped `BSEC_OUTPUT_BREATH_VOC_EQUIVALENT` from the
-  3.3.0.0 example, but all four demos publish it as their `VOC` value, so
-  `apply_polverine_patches.py` re-adds the subscription and the struct field by
-  default. The enum value still exists in 3.3.0.0, so this compiles and
-  subscribes cleanly. **Whether `libalgobsec.a` 3.3.0.0 still emits that output
-  has not been confirmed on hardware.** If your `VOC` reading is a constant
-  `0.00`, switch to `output->tvoc_equivalent` (also present in the generated
-  header) in the demo's `bme690_main.c`, and run the script with
-  `--drop-breath-voc`.
+- **Breath VOC is gone — the demos now publish TVOC.** Bosch dropped
+  `BSEC_OUTPUT_BREATH_VOC_EQUIVALENT` from the 3.3.0.0 example *and from the
+  algorithm*. The enum value still exists in `bsec_datatypes.h`, so re-adding
+  the subscription still compiles and links — but at runtime the library
+  rejects the configuration with `BSEC_E_CONFIG_FEATUREMISMATCH (-35)`, which
+  aborts `bsec_iot_init()` and stops the BME690 task producing anything at all.
+
+  Verified on Polverine Rev C hardware:
+
+  | breath-VOC subscription | boot log | bme690 output |
+  |---|---|---|
+  | re-added (`--with-breath-voc`) | `BME690 ERROR while initializing BSEC library: -35` | none, ever |
+  | omitted (default) | `BME690 OK` / `BSEC Version : 3.3.0.0` | samples flow |
+
+  So the four demos now read `output->tvoc_equivalent`, 3.3.0.0's replacement,
+  which is subscribed automatically in LP mode. **The published JSON field is
+  still named `VOC`** so existing Node-RED flows and MongoDB collections keep
+  working — but it now carries TVOC, not breath-VOC. The two are not the same
+  quantity; relabel your dashboards accordingly.
+
+  `--with-breath-voc` is kept only for building against BSEC 3.2.x.
 - **Stored BSEC state.** `BSEC_MAX_STATE_BLOB_SIZE` shrank from 201 to 197 and
   `BSEC_MAX_PROPERTY_BLOB_SIZE` from 554 to 550. `POLVERINE_HOMEASSISTANT_DEMO`
   persists BSEC state in NVS; a blob written by BSEC 3.2.1.0 can make

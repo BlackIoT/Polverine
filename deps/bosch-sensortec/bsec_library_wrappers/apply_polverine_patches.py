@@ -42,17 +42,29 @@ USAGE
     # explicit paths
     python3 apply_polverine_patches.py --src /path/to/bsec_iot_example --dst .
 
-    --drop-breath-voc   omit the three compatibility edits that re-add
-                        BSEC_OUTPUT_BREATH_VOC_EQUIVALENT (see below).
+    --with-breath-voc   re-add BSEC_OUTPUT_BREATH_VOC_EQUIVALENT (edits
+                        H5/H6/C2a/C2b/C4).  BSEC 3.2.x ONLY -- see below.
 
-ABOUT --drop-breath-voc
------------------------
+ABOUT --with-breath-voc  (do not use with BSEC 3.3.0.0)
+-------------------------------------------------------
 Bosch removed BSEC_OUTPUT_BREATH_VOC_EQUIVALENT from the v3.3.0.0 example
-(struct field, subscription, demux case).  All four Polverine demos read
-output->breath_voc_equivalent, so by default the edits H5/H6/C2a/C2b/C4 put it
-back; the enum value still exists in v3.3.0.0's bsec_datatypes.h, so the
-subscription is legal.  If you pass --drop-breath-voc you must also change the
-demos to use output->tvoc_equivalent instead, or they will not compile.
+(struct field, subscription, demux case) and from the algorithm itself.  The
+enum value still exists in v3.3.0.0's bsec_datatypes.h, so re-adding the
+subscription still COMPILES AND LINKS -- but it does not work: the library
+rejects the configuration at init with
+
+    BSEC_E_CONFIG_FEATUREMISMATCH (-35)
+    "Enabled features encoded in serialized settings ... does not match with
+     current library implementation or subscribed outputs"
+
+which aborts bsec_iot_init(), so the BME690 task never produces a single
+sample.  Verified on Polverine hardware (Rev C, MAC F0F5BD55333C): with the
+group applied the log shows "BME690 ERROR while initializing BSEC library: -35"
+and no bme690 output is ever emitted; without it, "BME690 OK / BSEC Version :
+3.3.0.0" and samples flow.
+
+The group is therefore OFF by default and the demos use output->tvoc_equivalent,
+which is v3.3.0.0's replacement (subscribed automatically in LP mode).
 
 LINE ENDINGS
 ------------
@@ -435,12 +447,13 @@ def main():
                          "(default: %(default)s)")
     ap.add_argument("--dst", default=DEFAULT_DST,
                     help="output directory (default: next to this script)")
-    ap.add_argument("--drop-breath-voc", action="store_true",
-                    help="do not re-add BSEC_OUTPUT_BREATH_VOC_EQUIVALENT; "
-                         "requires editing the demos to use tvoc_equivalent")
+    ap.add_argument("--with-breath-voc", action="store_true",
+                    help="re-add BSEC_OUTPUT_BREATH_VOC_EQUIVALENT. BSEC 3.2.x "
+                         "only -- on 3.3.0.0 this makes bsec_iot_init() fail "
+                         "with BSEC_E_CONFIG_FEATUREMISMATCH (-35)")
     args = ap.parse_args()
     try:
-        run(args.src, args.dst, breath_voc=not args.drop_breath_voc)
+        run(args.src, args.dst, breath_voc=args.with_breath_voc)
     except PatchError as exc:
         sys.stderr.write("\nERROR: %s\n\nNothing was written.\n" % exc)
         return 2

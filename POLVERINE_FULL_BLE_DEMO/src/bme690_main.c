@@ -238,7 +238,7 @@ static char* buffer[600];
   sb_add(&aveIAQ,output->iaq);
   sb_add(&aveACC,output->iaq_accuracy);
   sb_add(&aveCO2,output->co2_equivalent);
-  sb_add(&aveVOC,output->breath_voc_equivalent);
+  sb_add(&aveVOC,output->tvoc_equivalent);
 
 { // called 1 time every 3 ? (4.25) seconds, demultiplied to 1 data out every minute
 //    static int demult = 20;
@@ -265,7 +265,7 @@ static char* buffer[600];
     printf("%ld,%f,%u,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\r\n", (uint32_t)(output->timestamp/1000000),
                 output->iaq, output->iaq_accuracy, output->static_iaq, output->raw_temp, output->raw_humidity, output->compensated_temperature, 
                 output->compensated_humidity, output->raw_pressure, output->raw_gas, output->gas_percentage, output->co2_equivalent,
-                output->breath_voc_equivalent, output->stabStatus, output->runInStatus);
+                output->tvoc_equivalent, output->stabStatus, output->runInStatus);
 #else
     printf("%ld,%f,%f,%f,%f,%u,%u,%u,%u,%f,%f,%f,%f,%u\r\n", (uint32_t)(output->timestamp/1000000),
                 output->gas_estimate_1, output->gas_estimate_2, output->gas_estimate_3, output->gas_estimate_4,
