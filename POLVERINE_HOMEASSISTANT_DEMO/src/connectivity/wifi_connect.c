@@ -105,24 +105,41 @@ void wifi_store_write(const char *buffer)
 }
 
 static int s_retry_num = 0;
+static bool s_got_ip_once = false;
+
+/* Polverine fix (issue #29): the retry budget applies ONLY to the initial,
+ * blocking boot-time connect. This handler stays registered for the lifetime
+ * of the app, and previously, once s_retry_num exceeded the limit it returned
+ * early on EVERY later disconnect -- permanently, because s_retry_num is reset
+ * only by IP_EVENT_STA_GOT_IP, which can no longer arrive. Three transient
+ * drops (the limit is 3) therefore killed Wi-Fi until a power cycle. With
+ * light sleep + Wi-Fi power save, beacon-timeout drops make that happen within
+ * minutes. Once an IP has been held at least once we reconnect indefinitely.
+ * Keeping the pre-IP budget preserves the provisioning fallback in main.c,
+ * which relies on polverine_connect() returning failure. */
 
 static void example_handler_on_wifi_disconnect(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
     ESP_LOGI(TAG, "WiFi disconnect event received");
-    s_retry_num++;
-    ESP_LOGI(TAG, "Retry attempt: %d/%d", s_retry_num, CONFIG_POLVERINE_WIFI_CONN_MAX_RETRY);
 
-    if (s_retry_num > CONFIG_POLVERINE_WIFI_CONN_MAX_RETRY) {
-        ESP_LOGE(TAG, "WiFi Connect failed %d times, stop reconnect.", s_retry_num);
-        /* let wifi_sta_do_connect() return */
-        if (s_semph_get_ip_addrs) {
-            ESP_LOGI(TAG, "Giving semaphore to unblock wifi_sta_do_connect");
-            xSemaphoreGive(s_semph_get_ip_addrs);
-        } else {
-            ESP_LOGW(TAG, "Semaphore not available to give");
+    if (!s_got_ip_once) {
+        s_retry_num++;
+        ESP_LOGI(TAG, "Retry attempt: %d/%d", s_retry_num, CONFIG_POLVERINE_WIFI_CONN_MAX_RETRY);
+
+        if (s_retry_num > CONFIG_POLVERINE_WIFI_CONN_MAX_RETRY) {
+            ESP_LOGE(TAG, "WiFi Connect failed %d times, stop reconnect.", s_retry_num);
+            /* let wifi_sta_do_connect() return */
+            if (s_semph_get_ip_addrs) {
+                ESP_LOGI(TAG, "Giving semaphore to unblock wifi_sta_do_connect");
+                xSemaphoreGive(s_semph_get_ip_addrs);
+            } else {
+                ESP_LOGW(TAG, "Semaphore not available to give");
+            }
+            return;
         }
-        return;
+    } else {
+        ESP_LOGI(TAG, "Post-IP disconnect; reconnecting (no retry limit)");
     }
 
     ESP_LOGI(TAG, "Wi-Fi disconnected, trying to reconnect...");
@@ -191,6 +208,7 @@ static void polverine_handler_on_sta_got_ip(void *arg, esp_event_base_t event_ba
 {
     ESP_LOGI(TAG, "Got IP event received");
     s_retry_num = 0;
+    s_got_ip_once = true;   /* from here on, reconnect indefinitely */
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
 
     if (!is_our_netif(POLVERINE_NETIF_DESC_STA, event->esp_netif)) {
@@ -278,6 +296,7 @@ esp_err_t wifi_sta_do_connect(wifi_config_t wifi_config, bool wait)
     }
 
     s_retry_num = 0;
+    s_got_ip_once = false;   /* new connect cycle: restore the pre-IP retry budget */
     ESP_LOGI(TAG, "Registering event handlers...");
     ESP_LOGI(TAG, "Registering disconnect handler...");
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &example_handler_on_wifi_disconnect, NULL));
