@@ -1,3 +1,23 @@
+/*
+ * SPDX-License-Identifier: MIT
+ *
+ * bsec_temp_offset_tab_target_board.h -- Polverine board self-heating
+ * compensation tables for the BSEC heat-source input.
+ *
+ * Contributed by Bosch Sensortec (zgg <zhengguang.guo@us.bosch.com>, 2025)
+ * for the BlackIoT Polverine board and released under this repository's MIT
+ * licence.  It is NOT part of the licence-gated Bosch BSEC/BMV080 SDK material.
+ *
+ * Each tocp_cfgN[] table maps the raw BME690 temperature (deg C) to the
+ * board's self-heating offset via piecewise polynomials
+ *   offset = w[0] + w[1]*t + w[2]*t^2 + w[3]*t^3 + offset_ref
+ * over contiguous [range_min, range_max] intervals covering -45..85 deg C.
+ * temp_profile_tab[] selects the table from the pair
+ * (PLVN_CFG_TEMP_PROFILE_CLIENT_ID, PLVN_CFG_BMV080_DUTY_CYCLE_PERIOD_S)
+ * defined in each demo's polverine_cfg.h; the lookup is done by
+ * _get_board_specific_temp_offset() in the generated bsec_integration.c.
+ */
+
 typedef struct {
     float range_min;
     float range_max;
@@ -56,7 +76,7 @@ temp_offset_cf_param_t tocp_cfg6[] = {
     {-1.3f, 10.37f,{9.2f, 0.0541f, 0, 0}, OFFSET_REF_CFG6},
     {10.37f, 37.2f,{9.2f, 0.0541f, 0, 0}, OFFSET_REF_CFG6},
     {37.2f, 56,    {8.72f, 0.0658f, 0, 0}, OFFSET_REF_CFG6},
-    {65, 85,    {12.29f, 0, 0, 0}, OFFSET_REF_CFG6},
+    {56, 85,    {12.29f, 0, 0, 0}, OFFSET_REF_CFG6},
 };
 
 #define OFFSET_REF_CFG7 1.3f

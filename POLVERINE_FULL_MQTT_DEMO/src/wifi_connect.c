@@ -12,6 +12,7 @@
    CONDITIONS OF ANY KIND, either express or implied.
  */
 
+#include <stdlib.h>
 #include <string.h>
 #include "protocol_common.h"
 #include "common_private.h"
@@ -70,25 +71,43 @@ void wifi_store_write(const char *buffer)
         nvs_handle_t handle;
         esp_err_t err = nvs_open("WIFI", NVS_READWRITE, &handle);
         if (err == ESP_OK) {
-            err = nvs_set_str(handle, "JSON", cJSON_Print(json));
+            char *printed = cJSON_Print(json);
+            if (printed) {
+                err = nvs_set_str(handle, "JSON", printed);
+                free(printed);
+            }
         nvs_close(handle);
         }
+        cJSON_Delete(json);
     }
 }
 
 static int s_retry_num = 0;
+static bool s_got_ip_once = false;
+
+/* Polverine fix (issue #29): the retry budget below must apply ONLY to the
+ * initial, blocking boot-time connect. This handler stays registered for the
+ * lifetime of the app, and previously, once s_retry_num exceeded the limit it
+ * returned early on EVERY later disconnect -- permanently, because
+ * s_retry_num is reset only by IP_EVENT_STA_GOT_IP, which can no longer
+ * arrive. Three transient drops (the limit is 3) therefore killed Wi-Fi until
+ * a power cycle. With light sleep + Wi-Fi power save, beacon-timeout drops
+ * make that happen within minutes. Once we have held an IP at least once we
+ * keep reconnecting indefinitely instead. */
 
 static void example_handler_on_wifi_disconnect(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
-    s_retry_num++;
-    if (s_retry_num > CONFIG_POLVERINE_WIFI_CONN_MAX_RETRY) {
-        ESP_LOGI(TAG, "WiFi Connect failed %d times, stop reconnect.", s_retry_num);
-        /* let wifi_sta_do_connect() return */
-        if (s_semph_get_ip_addrs) {
-            xSemaphoreGive(s_semph_get_ip_addrs);
+    if (!s_got_ip_once) {
+        s_retry_num++;
+        if (s_retry_num > CONFIG_POLVERINE_WIFI_CONN_MAX_RETRY) {
+            ESP_LOGI(TAG, "WiFi Connect failed %d times, stop reconnect.", s_retry_num);
+            /* let wifi_sta_do_connect() return */
+            if (s_semph_get_ip_addrs) {
+                xSemaphoreGive(s_semph_get_ip_addrs);
+            }
+            return;
         }
-        return;
     }
     ESP_LOGI(TAG, "Wi-Fi disconnected, trying to reconnect...");
     esp_err_t err = esp_wifi_connect();
@@ -107,6 +126,7 @@ static void polverine_handler_on_sta_got_ip(void *arg, esp_event_base_t event_ba
                       int32_t event_id, void *event_data)
 {
     s_retry_num = 0;
+    s_got_ip_once = true;   /* from here on, reconnect indefinitely */
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
     if (!is_our_netif(POLVERINE_NETIF_DESC_STA, event->esp_netif)) {
         return;
@@ -161,6 +181,7 @@ esp_err_t wifi_sta_do_connect(wifi_config_t wifi_config, bool wait)
         }
     }
     s_retry_num = 0;
+    s_got_ip_once = false;   /* new connect cycle: the retry budget applies again */
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &example_handler_on_wifi_disconnect, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &polverine_handler_on_sta_got_ip, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, &polverine_handler_on_wifi_connect, s_example_sta_netif));

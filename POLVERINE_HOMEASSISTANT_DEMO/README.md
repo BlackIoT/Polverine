@@ -1,95 +1,56 @@
-## POLVERINE_FULL_MQTT_DEMO: A Complete Solution for Sensor Data Collection and Analysis
+## POLVERINE_HOMEASSISTANT_DEMO: Home Assistant Integration via MQTT Discovery
 
-### A Comprehensive System Architecture
+### What this demo does
 
-At the heart of this solution lies POLVERINE_FULL_MQTT_DEMO firmware. This firmware collects sensor measurements and transmits them using the ESP32-S3 module's WiFi capabilities to an MQTT broker. From there, a NodeRed ["Server Flows"](../nodered/server_flows.json) monitors the broker's message queue and systematically archives all incoming data in a MongoDB database.
+This firmware reads the Bosch BME690 (temperature, relative humidity, barometric pressure and air-quality outputs fused by the BSEC library) and the Bosch BMV080 (PM10, PM2.5, PM1 particulate matter) and publishes everything to an MQTT broker using the [Home Assistant MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) protocol. No manual configuration is needed on the Home Assistant side: the device announces its sensors and they appear automatically under a "Polverine XXXXXX" device.
 
-![](../images/scada_flow.png)
+Published entities:
 
-The system also benefits from the latest SDK for the BMV080 sensor, which is now publicly available. This SDK enables the reading of particulate matter (PM) values for PM10, PM2.5, and PM1. The full range of sensed quantities includes:
+- Temperature, Relative Humidity, Barometric Pressure (BME690)
+- Indoor Air Quality (IAQ), Static IAQ, IAQ Accuracy, CO2 equivalent, TVOC (ppb), Gas Percentage (BSEC)
+- Gas Sensor Stabilized / Run-in Complete (binary sensors)
+- PM10, PM2.5, PM1, Sensor Obstructed, Measurement Out of Range (BMV080)
+- WiFi Signal, Free Memory, Uptime, CPU Temperature (system metrics)
 
-- Temperature
-- Relative Humidity
-- Barometric Pressure
-- Volatile Organic Compounds (V.O.C.)
-- Particulate Matter 10 (PM10)
-- Particulate Matter 2.5 (PM2.5)
-- Particulate Matter 1 (PM1)
+State is published to `polverine/<id>/bme690/state`, `polverine/<id>/bmv080/state` and `polverine/<id>/system/state`; availability (`online`/`offline`, with an MQTT last-will) to `polverine/<id>/availability`; discovery messages to `homeassistant/sensor/polverine_<id>/.../config`. `<id>` is the last 6 hex characters of the device MAC address.
 
-In addition to local sensor data, the server-side processing layer integrates with OpenWeatherMap's API to enrich the dataset with external environmental parameters such as temperature, humidity, barometric pressure, wind speed, and cloud cover percentages.
+### Configuration: WiFi provisioning portal
 
-### Data Visualization Made Easy
+Unlike the other demos, this firmware does not use in-source credentials. On first boot (or whenever no WiFi SSID is stored) the device opens an access point:
 
-To facilitate data analysis and visualization, a separate NodeRed ["Client Flows"]((../nodered/client_flows.json)) interface has been developed. This interface allows users to dynamically query the MongoDB repository and visualize data directly in a web browser. Users can select metrics from individual devices or compare data from multiple units, with flexible time filters enabling detailed examination of trends over configurable periods.
+1. Connect to the WiFi network `Polverine-XXXXXX` (password: `12345678`)
+2. Open `http://192.168.4.1` in a browser
+3. Enter the WiFi SSID/password and the MQTT broker URI, username and password
+4. Save; the device restarts and connects to your network
+
+The same portal is started as a fallback when connecting with the stored credentials fails. Holding the BOOT button (SW1) for 5 seconds clears the stored configuration and restarts provisioning.
+
+All settings live in NVS (namespace `polverine_cfg`, keys `wifi_ssid`, `wifi_pass`, `mqtt_uri`, `mqtt_user`, `mqtt_pass`, `mqtt_client`). Compile-time defaults can be injected instead of using the portal — see `src/utils/config.c` (`DEFAULT_WIFI_SSID`, `DEFAULT_WIFI_PASS`, `DEFAULT_MQTT_URI`, `DEFAULT_MQTT_USER`, `DEFAULT_MQTT_PASS`) and [README_SETUP.md](README_SETUP.md) for the `build_flags` recipe. Leaving the MQTT username/password empty connects anonymously.
 
 ### Adding Bosch SDKs to Polverine source code
 
-The POLVERINE_FULL_MQTT_DEMO communicates with the Bosch BME690 & BMV080 sensors and need to use the SDKs published by Bosch Sensortec.
+The POLVERINE_HOMEASSISTANT_DEMO communicates with the Bosch BME690 & BMV080 sensors and needs the SDKs published by Bosch Sensortec.
 
-The SDKs source code and compiled libraries cannot be stored in this repository, but must be downloaded by the user from the Bosch website by accepting the licence agreement.
+Those SDKs are licence-gated: their sources and compiled libraries cannot be stored in this repository, and must be downloaded by the user from the Bosch website by accepting the licence agreement, then staged under `../deps/bosch-sensortec/`.
 
-- [BMV080 SDK r.11.0.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/sdk-v11-0-0.html)
-- [BME690 BSEC r.3.1.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/bsec-software-3-1-0-0-form-1.html)
+- [BMV080 SDK r.11.2.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/sdk-v11-2.html) - unzip into `../deps/bosch-sensortec/BMV080-SDK/`
+- [BME690 BSEC r.3.3.0.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/bsec-software-3-3-0-0-form.html) - unzip into `../deps/bosch-sensortec/bsec_library_v3.x/`
 
+`bsec_integration.c` / `bsec_integration.h` also derive from Bosch example code and are not in this repository; regenerate them from your own BSEC download with:
 
-#### Bosch BMV080 SDK
-1) Unzip the downloaded BMV080 SDK file 
-2) move the SDK's folder into the ../deps/bosch-sensortec/ folder
-3) and rename it as: "BMV080-SDK"
+```
+python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py
+```
 
-The folder "BMV080-SDK" should have the following subfolders and/or files:
+**The complete, authoritative staging procedure - exact directory layout, the file-by-file list and how to verify it - is in [../deps/bosch-sensortec/README.md](../deps/bosch-sensortec/README.md). Follow it before building.**
 
-- CHANGELOG.md  
-- LICENSE.md  
-- README.md  
-- api  
-- api_examples"
+`before_build.py` runs before compilation and aborts with the full path of the first missing file, so an incomplete staging can never turn into a confusing compiler error.
 
-#### Bosch BME690 BSEC Library
-1) Unzip the downloaded BSEC Library file 
-2) move the library's folder into the ../deps/bosch-sensortec/ folder
-3) and rename it as: "bsec_library_v3.x"
- 
-The folder "bsec_library_v3.x" should have at least the following subfolders and/or files:
-
-- algo
-- examples
-
-### Firmware Customization
-
-To make the application work correctly in your environment you must customize some settings:
-
-#### WiFi connection configuration
-
-- in the file /src/wifi_connect.c must replace the dummy xxxxxxxxx in DEFAUT_POLVERINE_WIFI with actual values, for example:
-
-		const char *DEFAULT_POLVERINE_WIFI = "{\"ssid\":\"AccessPointID\",\"pwd\":\"AccessPointPassword\"}";
-
-#### MQTT connection configuration
-
-- in the file /src/mqtt_main.c must replace the dummy xxxxxxxxx in TEMPLATE_POLVERINE_MQTT with actual values, for example:
-
-		const char *TEMPLATE_POLVERINE_MQTT = "{\"uri\":\"mqtt://mqttserver.local\",\"user\":\"username\",\"pwd\":\"userpassword\",\"clientid\":\"%s\"}";
-
-	- uri : MQTT broker address
-	- user : username to have access to MQTT broker
-	- pwd : password assigned to the user
-	- clientid : you can use the %s placeholder to have a unique ID or specify your own .
-
-- you can customize MQTT topics changing the values in TEMPLATE_POLVERINE_TOPIC .
-
-		const char *TEMPLATE_POLVERINE_TOPIC = "{\"bmv080\":\"polverine/%s/bmv080\",\"bme690\":\"polverine/%s/bme690\",\"cmd\":\"polverine/%s/cmd\"}";
-
-	- bmv080 : MQTT topic to publish BMV080 sensor data
-	- bme690 : MQTT topic to publish BME690 sensor data
-	- sys: MQTT topic to publish Polverine system data
-	- cmd : MQTT topic to subscribe to commands sent to the device
-
-the %s placeholder is dynamically substituted with the unique ID of the device, i.e. with the 6 terminating characters of the MAC address of the device.
-
+> BSEC **3.2.1.0 and older will not build**: the library tree moved from `algo/bsec_IAQ/` to `release_bin/IAQ/` in 3.3.0.0.
 
 ### Firmware Upload
-The POLVERINE_FULL_MQTT_DEMO puts the ESP32-S3 MCU in low power mode that disables USB. To upload the firmware using USB port you must put Polverine in boot mode: 
+
+When light sleep is active it can disable the USB-Serial-JTAG port. To upload the firmware over USB you may need to put Polverine in boot mode:
 
 1. press boot button (SW1 - BOOT)
 2. press reset button (SW2 - EN)
@@ -99,5 +60,6 @@ The POLVERINE_FULL_MQTT_DEMO puts the ESP32-S3 MCU in low power mode that disabl
 6. press reset button
 7. release reset button
 
-
 When in bootloader mode the RGB led is lit.
+
+See [README_SETUP.md](README_SETUP.md) for the build commands, the Home Assistant entity list and troubleshooting.

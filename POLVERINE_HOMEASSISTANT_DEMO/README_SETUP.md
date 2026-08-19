@@ -38,7 +38,8 @@ build_flags =
 1. Install dependencies:
    - Download BMV080 SDK from Bosch
    - Download BSEC3 library from Bosch
-   - Place in `deps/` folder as specified in CLAUDE.md
+   - Stage them under `../deps/bosch-sensortec/` as specified in
+     [../deps/bosch-sensortec/README.md](../deps/bosch-sensortec/README.md)
 
 2. Build and upload:
    ```bash
@@ -62,7 +63,7 @@ The device automatically publishes discovery messages to Home Assistant. Entitie
 ## Troubleshooting
 
 ### Device not connecting to WiFi
-- Check credentials in secrets.h or NVS
+- Re-enter the credentials via the provisioning portal (hold BOOT for 5 seconds to reset)
 - Verify WiFi network is 2.4GHz
 - Check serial output for connection errors
 
@@ -79,7 +80,8 @@ The device automatically publishes discovery messages to Home Assistant. Entitie
 
 ## Security Notes
 
-- The device stores credentials securely in NVS (encrypted flash)
+- The device stores credentials in NVS. NVS is **not** encrypted by default;
+  enable flash/NVS encryption in sdkconfig if that matters for your deployment
 - Use strong passwords for WiFi and MQTT
 - Consider using MQTT with TLS (mqtts://) for production
 - Hold BOOT button for 5 seconds to reset credentials if needed

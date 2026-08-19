@@ -60,6 +60,17 @@ bool config_init(void)
 static bool load_string_from_nvs(const char *key, char *value, size_t max_len, const char *default_value)
 {
     size_t length = max_len;
+
+    /* Always leave *value* a valid, NUL-terminated string. Callers such as
+     * config_load_mqtt() ignore the return value for optional fields
+     * (username/password), so bailing out without touching the buffer left
+     * them holding uninitialised stack bytes, which were then handed to the
+     * MQTT client as credentials and broke the broker connection for any
+     * anonymous broker. */
+    if (max_len > 0) {
+        value[0] = '\0';
+    }
+
     esp_err_t err = nvs_get_str(config_handle, key, value, &length);
     
     if (err == ESP_OK) {
@@ -73,7 +84,11 @@ static bool load_string_from_nvs(const char *key, char *value, size_t max_len, c
             ESP_LOGI(TAG, "Using default value for %s", key);
             return true;
         }
-        ESP_LOGW(TAG, "%s not found in NVS and no default available", key);
+        /* No stored value and no non-empty default: an empty string is the
+         * correct result for optional fields (e.g. anonymous MQTT). The
+         * buffer was emptied above; report false so callers that need a
+         * generated value (client_id) still know nothing was loaded. */
+        ESP_LOGI(TAG, "%s not set; using empty value", key);
         return false;
     } else {
         ESP_LOGE(TAG, "Failed to read %s: %s", key, esp_err_to_name(err));
@@ -107,8 +122,8 @@ bool config_load_wifi(polverine_wifi_config_t *config)
     
     bool ssid_loaded = load_string_from_nvs(KEY_WIFI_SSID, config->ssid, 
                                             sizeof(config->ssid), DEFAULT_WIFI_SSID);
-    bool pass_loaded = load_string_from_nvs(KEY_WIFI_PASS, config->password, 
-                                            sizeof(config->password), DEFAULT_WIFI_PASS);
+    load_string_from_nvs(KEY_WIFI_PASS, config->password,
+                         sizeof(config->password), DEFAULT_WIFI_PASS);
     
     if (!ssid_loaded || strlen(config->ssid) == 0) {
         ESP_LOGE(TAG, "WiFi SSID not configured");

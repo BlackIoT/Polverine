@@ -59,22 +59,27 @@ static const char *TAG = "power_management";
     #endif
 }
 
+/* RGB LED pads: plain outputs, driven with gpio_set_level() from the sensor tasks.
+ * Do NOT gpio_hold_en() them here: on the ESP32-S3 the pad hold latches the output
+ * level until gpio_hold_dis(), so every later gpio_set_level() would be ignored and
+ * no LED indication would ever appear. gpio_sleep_sel_dis() is what keeps the pad
+ * state through automatic light sleep instead (see esp_pm PM_SLP_DISABLE_GPIO). */
 void gpio_init(void)
 {
     esp_rom_gpio_pad_select_gpio(R_LED_PIN);
     gpio_set_direction(R_LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_level(R_LED_PIN, 0);
-    gpio_hold_en(R_LED_PIN);
+    gpio_sleep_sel_dis(R_LED_PIN);
 
     esp_rom_gpio_pad_select_gpio(G_LED_PIN);
     gpio_set_direction(G_LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_level(G_LED_PIN, 0);
-    gpio_hold_en(G_LED_PIN);
+    gpio_sleep_sel_dis(G_LED_PIN);
 
     esp_rom_gpio_pad_select_gpio(B_LED_PIN);
     gpio_set_direction(B_LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_level(B_LED_PIN, 0);
-    gpio_hold_en(B_LED_PIN);
+    gpio_sleep_sel_dis(B_LED_PIN);
 }
 
 

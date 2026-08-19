@@ -1,132 +1,150 @@
-/**
- * Copyright (C) BlackIoT Sagl. All Rights Reserved. Confidential.
+/*
+ * Copyright (c) 2026 BlackIoT Sagl
+ * SPDX-License-Identifier: MIT
  *
+ * SPI bridge for the Bosch BMV080 SDK 11.2.0 on ESP32-S3 (written against the
+ * SDK API; contains no Bosch source).
  *
+ * Wire protocol expected by the SDK: every transfer is a 16-bit header word
+ * followed by payload_length 16-bit words, all MSB first, within a single
+ * chip-select assertion.  We map the header onto the SPI master's address
+ * phase (16 address bits, no command/dummy bits) and the payload onto the
+ * data phase, and byte-swap the payload words on the way in and out.
  */
 
 #include "bmv080_io.h"
-#include <unistd.h>
-#include <sys/param.h>
+
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "driver/gpio.h"
-#include "esp_log.h"
-#include "sdkconfig.h"
 
-/* SPI GPIO Configuration */
-#ifdef __USING_SPI3__
-#define PIN_NUM_MISO        37
-#define PIN_NUM_MOSI        35
-#define PIN_NUM_CLK         36
-#define PIN_NUM_CS          34
-#define SPI_CLK_FREQ        ((int)(1e6))
-#define SPI_MODULE          SPI3_HOST
-#else
-#define PIN_NUM_MISO        13
-#define PIN_NUM_MOSI        11
-#define PIN_NUM_CLK         12
-#define PIN_NUM_CS          10
-#define SPI_CLK_FREQ        ((int)(1e6))
-#define SPI_MODULE          SPI2_HOST
+/*
+ * Polverine wiring of the BMV080 (SPI2, routed through the GPIO matrix).
+ * Every value can be overridden from the build flags (-DBMV080_SPI_xxx=...)
+ * when the module is used on a different board.
+ */
+#ifndef BMV080_SPI_HOST
+#define BMV080_SPI_HOST     SPI2_HOST
 #endif
+#ifndef BMV080_SPI_MISO
+#define BMV080_SPI_MISO     13
+#endif
+#ifndef BMV080_SPI_MOSI
+#define BMV080_SPI_MOSI     11
+#endif
+#ifndef BMV080_SPI_SCLK
+#define BMV080_SPI_SCLK     12
+#endif
+#ifndef BMV080_SPI_CS
+#define BMV080_SPI_CS       10
+#endif
+#ifndef BMV080_SPI_HZ
+#define BMV080_SPI_HZ       1000000     /* 1 MHz, mode 0 */
+#endif
+
+#define BMV080_HEADER_BITS  16
+#define BMV080_WORD_BITS    16
+
+static inline uint16_t bswap16_u16(uint16_t w)
+{
+    return (uint16_t)((w << 8) | (w >> 8));
+}
 
 esp_err_t spi_init(spi_device_handle_t *spi)
 {
-    esp_err_t err = ESP_OK;
+    if (spi == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *spi = NULL;
 
-    spi_bus_config_t buscfg = {
-        .miso_io_num = PIN_NUM_MISO,
-        .mosi_io_num = PIN_NUM_MOSI,
-        .sclk_io_num = PIN_NUM_CLK,
+    const spi_bus_config_t bus = {
+        .mosi_io_num = BMV080_SPI_MOSI,
+        .miso_io_num = BMV080_SPI_MISO,
+        .sclk_io_num = BMV080_SPI_SCLK,
         .quadwp_io_num = -1,
-        .quadhd_io_num = -1};
+        .quadhd_io_num = -1,
+    };
+    esp_err_t err = spi_bus_initialize(BMV080_SPI_HOST, &bus, SPI_DMA_CH_AUTO);
+    if (err != ESP_OK) {
+        return err;
+    }
 
-    err = spi_bus_initialize(SPI_MODULE, &buscfg, SPI_DMA_CH_AUTO);
-
-    spi_device_interface_config_t devcfg = {
-        .address_bits = 16,
-        .clock_speed_hz = SPI_CLK_FREQ,
+    /* The 16-bit header travels in the address phase of every transaction. */
+    const spi_device_interface_config_t dev = {
+        .command_bits = 0,
+        .address_bits = BMV080_HEADER_BITS,
+        .dummy_bits = 0,
         .mode = 0,
-        .spics_io_num = PIN_NUM_CS,
+        .clock_speed_hz = BMV080_SPI_HZ,
+        .spics_io_num = BMV080_SPI_CS,
         .queue_size = 1,
-        .flags = 0 }; //SPI_DEVICE_HALFDUPLEX};
-
-    err = spi_bus_add_device(SPI_MODULE, &devcfg, spi);
-    return err;
+    };
+    return spi_bus_add_device(BMV080_SPI_HOST, &dev, spi);
 }
-
 
 esp_err_t spi_deinit(spi_device_handle_t *spi)
 {
-    spi_bus_remove_device(*spi);
+    if (spi == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    spi_device_handle_t dev = *spi;
     *spi = NULL;
-    return ESP_OK;
+    return (dev != NULL) ? spi_bus_remove_device(dev) : ESP_OK;
 }
-
 
 int8_t bmv080_spi_read_16bit(bmv080_sercom_handle_t handle, uint16_t header, uint16_t *payload, uint16_t payload_length)
 {
-    spi_transaction_ext_t spi_transaction = (spi_transaction_ext_t){
-        .base = {
-            .flags = (SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_VARIABLE_CMD),
-            .addr = header,
-            .length = payload_length * 2 * 8,
-            .rxlength = payload_length * 2 * 8,
-            .tx_buffer = NULL,
-            .rx_buffer = (void *)payload},
-        .command_bits = 0,
-        .address_bits = 16,
-        .dummy_bits = 0,
+    const size_t nbits = (size_t)payload_length * BMV080_WORD_BITS;
+
+    /* Full duplex: nothing meaningful is driven on MOSI while we clock the payload in. */
+    spi_transaction_t t = {
+        .addr = header,
+        .length = nbits,
+        .rxlength = nbits,
+        .rx_buffer = payload,
     };
+    esp_err_t err = spi_device_polling_transmit((spi_device_handle_t)handle, &t);
 
-    esp_err_t err = spi_device_polling_transmit((spi_device_handle_t)handle, (spi_transaction_t *)&spi_transaction);
-
-    /* Conversion of payload from big endian to little endian */
-    for (int payload_idx = 0; payload_idx < payload_length; payload_idx++)
-    {
-        uint16_t swapped_word = ((payload[payload_idx] << 8) | (payload[payload_idx] >> 8)) & 0xffff;
-        payload[payload_idx] = swapped_word;
+    /* Words arrived MSB first; put them into host byte order. */
+    for (uint16_t i = 0; i < payload_length; i++) {
+        payload[i] = bswap16_u16(payload[i]);
     }
 
     return (int8_t)err;
 }
-
 
 int8_t bmv080_spi_write_16bit(bmv080_sercom_handle_t handle, uint16_t header, const uint16_t *payload, uint16_t payload_length)
 {
-    esp_err_t err;
-
-    /* Conversion of payload from little endian to big endian (dynamic allocation is used) */
-    uint16_t *payload_swapped = (uint16_t *)calloc(payload_length, sizeof(uint16_t));
-    for (int payload_idx = 0; payload_idx < payload_length; payload_idx++)
-    {
-        payload_swapped[payload_idx] = ((payload[payload_idx] << 8) | (payload[payload_idx] >> 8)) & 0xffff;
+    /*
+     * The caller's buffer is const and in host byte order; build a swapped
+     * copy on the heap (payload_length is under SDK control and may be large).
+     */
+    /* payload_length may be 0 for header-only commands: send just the
+     * address phase then (tx_buffer NULL, length 0). */
+    uint16_t *wire = NULL;
+    if (payload_length > 0) {
+        wire = malloc((size_t)payload_length * sizeof(uint16_t));
+        if (wire == NULL) {
+            return (int8_t)ESP_ERR_NO_MEM;
+        }
+        for (uint16_t i = 0; i < payload_length; i++) {
+            wire[i] = bswap16_u16(payload[i]);
+        }
     }
 
-    spi_transaction_ext_t spi_transaction = (spi_transaction_ext_t){
-        .base = {
-            .flags = (SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_VARIABLE_CMD),
-            .addr = header,
-            .length = payload_length * 2 * 8,
-            .rx_buffer = NULL,
-            .tx_buffer = (void *)payload_swapped},
-        .command_bits = 0,
-        .address_bits = 16,
-        .dummy_bits = 0,
+    spi_transaction_t t = {
+        .addr = header,
+        .length = (size_t)payload_length * BMV080_WORD_BITS,
+        .tx_buffer = wire,
     };
+    esp_err_t err = spi_device_transmit((spi_device_handle_t)handle, &t);
 
-    err = spi_device_transmit((spi_device_handle_t)handle, (spi_transaction_t *)&spi_transaction);
-
-    free(payload_swapped);
-
+    free(wire);
     return (int8_t)err;
 }
 
-
-
 int8_t bmv080_delay(uint32_t period)
 {
-    vTaskDelay(period / portTICK_PERIOD_MS);
-    return ESP_OK;
+    vTaskDelay(pdMS_TO_TICKS(period));
+    return 0;
 }

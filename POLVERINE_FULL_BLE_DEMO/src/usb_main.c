@@ -1,3 +1,5 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
 #include "driver/usb_serial_jtag.h"
 #include <stdio.h>
@@ -17,8 +19,10 @@ void usb_task(void *)
 
     uint8_t buf[BUFFER_SIZE];
     while (1) {
-        // Read from USB CDC
-        int len = usb_serial_jtag_read_bytes(buf, BUFFER_SIZE, 0);
+        // Read from USB CDC: block until data arrives (the driver is interrupt driven and
+        // wakes the task); polling every tick would keep the chip out of auto light sleep.
+        // Read at most BUFFER_SIZE-1 bytes so the terminating 0 below stays inside buf.
+        int len = usb_serial_jtag_read_bytes(buf, BUFFER_SIZE - 1, portMAX_DELAY);
         if (len > 0) {
             ESP_LOGI("USB", "Received %d bytes: %.*s", len, len, buf);
             
@@ -27,7 +31,6 @@ void usb_task(void *)
             buf[len] = 0;
             parse((char *)buf);
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
     }
     vTaskDelete(NULL);
 }

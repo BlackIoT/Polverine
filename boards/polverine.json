@@ -13,7 +13,7 @@
     ],
     "f_cpu": "240000000L",
     "f_flash": "80000000L",
-    "flash_mode": "qio",
+    "flash_mode": "dio",
     "hwids": [
       [
         "0x303A",
@@ -24,7 +24,8 @@
     "variant": "esp32s3"
   },
   "connectivity": [
-    "wifi"
+    "wifi",
+    "bluetooth"
   ],
   "debug": {
     "default_tool": "esp-builtin",

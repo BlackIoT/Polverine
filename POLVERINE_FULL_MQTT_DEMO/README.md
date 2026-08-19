@@ -11,7 +11,7 @@ The system also benefits from the latest SDK for the BMV080 sensor, which is now
 - Temperature
 - Relative Humidity
 - Barometric Pressure
-- Volatile Organic Compounds (V.O.C.)
+- Total Volatile Organic Compounds (TVOC, in ppb)
 - Particulate Matter 10 (PM10)
 - Particulate Matter 2.5 (PM2.5)
 - Particulate Matter 1 (PM1)
@@ -24,36 +24,24 @@ To facilitate data analysis and visualization, a separate NodeRed ["Client Flows
 
 ### Adding Bosch SDKs to Polverine source code
 
-The POLVERINE_FULL_MQTT_DEMO communicates with the Bosch BME690 & BMV080 sensors and need to use the SDKs published by Bosch Sensortec.
+The POLVERINE_FULL_MQTT_DEMO communicates with the Bosch BME690 & BMV080 sensors and needs the SDKs published by Bosch Sensortec.
 
-The SDKs source code and compiled libraries cannot be stored in this repository, but must be downloaded by the user from the Bosch website by accepting the licence agreement.
+Those SDKs are licence-gated: their sources and compiled libraries cannot be stored in this repository, and must be downloaded by the user from the Bosch website by accepting the licence agreement, then staged under `../deps/bosch-sensortec/`.
 
-- [BMV080 SDK r.11.0.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/sdk-v11-0-0.html)
-- [BME690 BSEC r.3.1.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/bsec-software-3-1-0-0-form-1.html)
+- [BMV080 SDK r.11.2.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/sdk-v11-2.html) - unzip into `../deps/bosch-sensortec/BMV080-SDK/`
+- [BME690 BSEC r.3.3.0.0](https://www.bosch-sensortec.com/software-tools/double-opt-in-forms/bsec-software-3-3-0-0-form.html) - unzip into `../deps/bosch-sensortec/bsec_library_v3.x/`
 
+`bsec_integration.c` / `bsec_integration.h` also derive from Bosch example code and are not in this repository; regenerate them from your own BSEC download with:
 
-#### Bosch BMV080 SDK
-1) Unzip the downloaded BMV080 SDK file 
-2) move the SDK's folder into the ../deps/bosch-sensortec/ folder
-3) and rename it as: "BMV080-SDK"
+```
+python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py
+```
 
-The folder "BMV080-SDK" should have the following subfolders and/or files:
+**The complete, authoritative staging procedure - exact directory layout, the file-by-file list and how to verify it - is in [../deps/bosch-sensortec/README.md](../deps/bosch-sensortec/README.md). Follow it before building.**
 
-- CHANGELOG.md  
-- LICENSE.md  
-- README.md  
-- api  
-- api_examples"
+`before_build.py` runs before compilation and aborts with the full path of the first missing file, so an incomplete staging can never turn into a confusing compiler error.
 
-#### Bosch BME690 BSEC Library
-1) Unzip the downloaded BSEC Library file 
-2) move the library's folder into the ../deps/bosch-sensortec/ folder
-3) and rename it as: "bsec_library_v3.x"
- 
-The folder "bsec_library_v3.x" should have at least the following subfolders and/or files:
-
-- algo
-- examples
+> BSEC **3.2.1.0 and older will not build**: the library tree moved from `algo/bsec_IAQ/` to `release_bin/IAQ/` in 3.3.0.0.
 
 ### Firmware Customization
 
@@ -74,7 +62,14 @@ To make the application work correctly in your environment you must customize so
 	- uri : MQTT broker address
 	- user : username to have access to MQTT broker
 	- pwd : password assigned to the user
-	- clientid : you can use the %s placeholder to have a unique ID or specify your own .
+
+	(the `clientid` field is stored but currently not used: the firmware lets the MQTT client library generate its own client ID)
+
+### Telemetry frame fields
+
+`polverine/<ID>/bme690`: `TS` BSEC timestamp in seconds since boot, `R` raw MOX gas resistance in ohm, `rawT` raw die temperature in °C, `T` compensated air temperature in °C, `P` raw pressure in Pa, `H` compensated relative humidity in %, `IAQ` Index of Air Quality, `ACC` IAQ accuracy 0–3, `CO2` CO₂ equivalent in ppm, `VOC` TVOC equivalent in **ppb**. In the gated publish path the values are moving averages over the publish window. (`R` carried the timestamp until 2026-08 — issue #30.)
+
+`polverine/<ID>/bmv080`: `TS` sensor runtime in seconds, `PM10`/`PM25`/`PM1` in µg/m³, `obst`/`omr` obstruction and out-of-range flags, `T` ESP32-S3 die temperature in °C (not air temperature), `dcp` duty-cycle period in seconds. MQTT payloads carry no trailing newline (issue #28).
 
 - you can customize MQTT topics changing the values in TEMPLATE_POLVERINE_TOPIC .
 
@@ -82,8 +77,7 @@ To make the application work correctly in your environment you must customize so
 
 	- bmv080 : MQTT topic to publish BMV080 sensor data
 	- bme690 : MQTT topic to publish BME690 sensor data
-	- sys: MQTT topic to publish Polverine system data
-	- cmd : MQTT topic to subscribe to commands sent to the device
+	- cmd : MQTT topic the device subscribes to; received messages are only echoed to the console (no command handling is implemented)
 
 the %s placeholder is dynamically substituted with the unique ID of the device, i.e. with the 6 terminating characters of the MAC address of the device.
 

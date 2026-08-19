@@ -14,7 +14,6 @@
 #include "peripherals.h"
 #include "bmv080.h"
 #include "bmv080_io.h"
-#include "mqtt_client.h"
 #include "driver/temperature_sensor.h"
 #include "ble_main.h"
 #include "polverine_cfg.h"
@@ -29,6 +28,8 @@ extern char shortId[7];
 temperature_sensor_handle_t temp_sensor = NULL;
 /** @brief Flag indicating if BMV080 data has been published */
 volatile bool flBMV080Published = false;
+/** @brief Width of the LED status blips in ms (a 1 ms delay is 0 ticks at CONFIG_FREERTOS_HZ=100 and never shows) */
+#define LED_BLIP_MS 50
 
 /**
  * @brief Callback function for BMV080 data ready event
@@ -44,7 +45,7 @@ static char buffer[256] = {0};
 float temperature;
   temperature_sensor_get_celsius(temp_sensor, &temperature);
 
-  snprintf(buffer,256,"{\"topic\":\"bmv080\",\"data\":{\"ID\":\"%s\",\"R\":%.1f,\"PM10\":%.0f,\"PM25\":%.0f,\"PM1\":%.0f,\"obst\":\"%s\",\"omr\":\"%s\",\"T\":%.1f}}\n", shortId,
+  snprintf(buffer,256,"{\"topic\":\"bmv080\",\"data\":{\"ID\":\"%s\",\"TS\":%.1f,\"PM10\":%.0f,\"PM25\":%.0f,\"PM1\":%.0f,\"obst\":\"%s\",\"omr\":\"%s\",\"T\":%.1f}}\n", shortId,
         bmv080_output.runtime_in_sec, bmv080_output.pm10_mass_concentration, bmv080_output.pm2_5_mass_concentration, bmv080_output.pm1_mass_concentration, 
         (bmv080_output.is_obstructed ? "yes" : "no"), (bmv080_output.is_outside_measurement_range ? "yes" : "no"),
         temperature);     
@@ -104,15 +105,12 @@ void bmv080_task(void *pvParameter)
   {
     printf("Getting BMV080 sensor driver version failed with BMV080 status %d\r\n", bmv080_current_status);
     gpio_set_level(R_LED_PIN, 1);
-    gpio_hold_en(R_LED_PIN);
     vTaskDelete(NULL);
   }
   printf("BMV080 sensor driver version: %d.%d.%d.%s.%ld\r\n", major, minor, patch, git_hash, commits_ahead);
   gpio_set_level(G_LED_PIN, 1);
-  gpio_hold_en(G_LED_PIN);
-  bmv080_delay(1);
+  bmv080_delay(LED_BLIP_MS);
   gpio_set_level(G_LED_PIN, 0);
-  gpio_hold_en(G_LED_PIN);
 
   bmv080_handle_t handle = {0};
 
@@ -121,43 +119,34 @@ void bmv080_task(void *pvParameter)
   {
     printf("Initializing BMV080 failed with status %d\r\n", (int)bmv080_current_status);
     gpio_set_level(R_LED_PIN, 1);
-    gpio_hold_en(R_LED_PIN);
     vTaskDelete(NULL);
   }
   gpio_set_level(G_LED_PIN, 1);
-  gpio_hold_en(G_LED_PIN);
-  bmv080_delay(1);
+  bmv080_delay(LED_BLIP_MS);
   gpio_set_level(G_LED_PIN, 0);
-  gpio_hold_en(G_LED_PIN);
 
   bmv080_current_status = bmv080_reset(handle);
   if (bmv080_current_status != E_BMV080_OK)
   {
     printf("Resetting BMV080 sensor unit failed with BMV080 status %d\r\n", (int)bmv080_current_status);
     gpio_set_level(R_LED_PIN, 1);
-    gpio_hold_en(R_LED_PIN);
     vTaskDelete(NULL);
   }
   gpio_set_level(G_LED_PIN, 1);
-  gpio_hold_en(G_LED_PIN);
-  bmv080_delay(1);
+  bmv080_delay(LED_BLIP_MS);
   gpio_set_level(G_LED_PIN, 0);
-  gpio_hold_en(G_LED_PIN);
 
-   /*********************************************************************************************************************
-    * Running a particle measurement in duty cycling mode
-    *********************************************************************************************************************/
-    /* Get default parameter "duty_cycling_period" */
+   /* --- duty-cycling particle measurement ---------------------------- */
+    /* Read back the SDK default duty-cycling period, then program ours. */
     uint16_t duty_cycling_period = 0;
     bmv080_current_status = bmv080_get_parameter(handle, "duty_cycling_period", (void*)&duty_cycling_period);
 
-    printf("Default duty_cycling_period: %d s\r\n", duty_cycling_period);
+    printf("BMV080 default duty-cycling period: %d s\r\n", duty_cycling_period);
 
-    /* Set custom parameter "duty_cycling_period" */
     duty_cycling_period = PLVN_CFG_BMV080_DUTY_CYCLE_PERIOD_S;
     bmv080_current_status = bmv080_set_parameter(handle, "duty_cycling_period", (void*)&duty_cycling_period);
 
-    printf("Customized duty_cycling_period: %d s\r\n", duty_cycling_period);
+    printf("BMV080 duty-cycling period set to %d s\r\n", duty_cycling_period);
 
 
   bmv080_current_status = bmv080_start_duty_cycling_measurement(handle,get_tick_ms,E_BMV080_DUTY_CYCLING_MODE_0);
@@ -165,14 +154,11 @@ void bmv080_task(void *pvParameter)
   {
     printf("Starting BMV080 failed with status %d\r\n", (int)bmv080_current_status);
     gpio_set_level(R_LED_PIN, 1);
-    gpio_hold_en(R_LED_PIN);
     vTaskDelete(NULL);
   }
   gpio_set_level(G_LED_PIN, 1);
-  gpio_hold_en(G_LED_PIN);
-  bmv080_delay(1);
+  bmv080_delay(LED_BLIP_MS);
   gpio_set_level(G_LED_PIN, 0);
-  gpio_hold_en(G_LED_PIN);
 
 
  temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 80);
@@ -188,6 +174,7 @@ void bmv080_task(void *pvParameter)
     {
       printf("Reading BMV080 failed with status %d\r\n", (int)bmv080_current_status);
       gpio_set_level(R_LED_PIN, 1);
+      bmv080_delay(LED_BLIP_MS);
       gpio_set_level(R_LED_PIN, 0);
     }
   }

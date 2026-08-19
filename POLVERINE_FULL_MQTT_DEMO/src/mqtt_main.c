@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "esp_mac.h"
 #include "peripherals.h"
 #include "mqtt_client.h"
@@ -61,9 +62,14 @@ void mqtt_store_write(const char *buffer)
         nvs_handle_t handle;
         esp_err_t err = nvs_open("MQTT", NVS_READWRITE, &handle);
         if (err == ESP_OK) {
-            err = nvs_set_str(handle, "SERVER", cJSON_Print(json));
+            char *printed = cJSON_Print(json);
+            if (printed) {
+                err = nvs_set_str(handle, "SERVER", printed);
+                free(printed);
+            }
         nvs_close(handle);
         }
+        cJSON_Delete(json);
     }
 }
 
@@ -103,9 +109,14 @@ void topic_store_write(const char *buffer)
         nvs_handle_t handle;
         esp_err_t err = nvs_open("MQTT", NVS_READWRITE, &handle);
         if (err == ESP_OK) {
-            err = nvs_set_str(handle, "TOPIC", cJSON_Print(json));
+            char *printed = cJSON_Print(json);
+            if (printed) {
+                err = nvs_set_str(handle, "TOPIC", printed);
+                free(printed);
+            }
         nvs_close(handle);
         }
+        cJSON_Delete(json);
     }
 }
 
@@ -123,7 +134,7 @@ void bmv080_publish(const char *buffer)
 {
   if(isConnected)
   {
-    int msg_id = esp_mqtt_client_publish(client, cJSON_GetObjectItemCaseSensitive(topic, "bmv080")->valuestring, buffer, 0, 1, 0);        
+    esp_mqtt_client_publish(client, cJSON_GetObjectItemCaseSensitive(topic, "bmv080")->valuestring, buffer, 0, 1, 0);        
   }
 }
 
@@ -131,7 +142,7 @@ void bme690_publish(const char *buffer)
 {
   if(isConnected)
   {
-    int msg_id = esp_mqtt_client_publish(client, cJSON_GetObjectItemCaseSensitive(topic, "bme690")->valuestring, buffer, strlen(buffer), 0, 0);        
+    esp_mqtt_client_publish(client, cJSON_GetObjectItemCaseSensitive(topic, "bme690")->valuestring, buffer, strlen(buffer), 0, 0);        
   }
 }
 
@@ -165,6 +176,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+        isConnected = false;
         break;
 
     case MQTT_EVENT_SUBSCRIBED:
@@ -205,8 +217,18 @@ void mqtt_app_start(void)
     mqtt_store_read();
     topic_store_read();
 
-    printf("[MQTT] MQTT=%s\r\n", cJSON_Print(mqtt));
-    printf("[MQTT] TOPIC=%s\r\n", cJSON_Print(topic));
+    /* Never dump the whole MQTT config: it contains the broker password. */
+    cJSON *uri_item = cJSON_GetObjectItemCaseSensitive(mqtt, "uri");
+    cJSON *clientid_item = cJSON_GetObjectItemCaseSensitive(mqtt, "clientid");
+    printf("[MQTT] uri=%s clientid=%s\r\n",
+           (uri_item && uri_item->valuestring) ? uri_item->valuestring : "(none)",
+           (clientid_item && clientid_item->valuestring) ? clientid_item->valuestring : "(none)");
+
+    char *topic_printed = cJSON_Print(topic);
+    if (topic_printed) {
+        printf("[MQTT] TOPIC=%s\r\n", topic_printed);
+        free(topic_printed);
+    }
 
     esp_mqtt_client_config_t mqtt_cfg = {0};
 

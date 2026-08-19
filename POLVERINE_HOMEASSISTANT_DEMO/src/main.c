@@ -17,6 +17,7 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "protocol_common.h"
+#include "common_private.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -70,20 +71,24 @@ static const char *TAG = "power_management";
 
 void gpio_init(void)
 {
+    /* Note: gpio_hold_en() would latch the output level ("can not be
+     * changed"), turning every later gpio_set_level() into a no-op and
+     * killing all LED indications. gpio_sleep_sel_dis() keeps the pad on
+     * its normal configuration across light sleep instead. */
     esp_rom_gpio_pad_select_gpio(R_LED_PIN);
     gpio_set_direction(R_LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_level(R_LED_PIN, 0);
-    gpio_hold_en(R_LED_PIN);
+    gpio_sleep_sel_dis(R_LED_PIN);
 
     esp_rom_gpio_pad_select_gpio(G_LED_PIN);
     gpio_set_direction(G_LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_level(G_LED_PIN, 0);
-    gpio_hold_en(G_LED_PIN);
+    gpio_sleep_sel_dis(G_LED_PIN);
 
     esp_rom_gpio_pad_select_gpio(B_LED_PIN);
     gpio_set_direction(B_LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_level(B_LED_PIN, 0);
-    gpio_hold_en(B_LED_PIN);
+    gpio_sleep_sel_dis(B_LED_PIN);
 }
 
 
@@ -115,7 +120,13 @@ void app_main(void)
     esp_log_level_set("transport", ESP_LOG_DEBUG);
     esp_log_level_set("outbox", ESP_LOG_DEBUG);
     ESP_LOGI(TAG, "Initializing NVS flash...");
-    ESP_ERROR_CHECK(nvs_flash_init());
+    esp_err_t nvs_ret = nvs_flash_init();
+    if (nvs_ret == ESP_ERR_NVS_NO_FREE_PAGES || nvs_ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "NVS partition needs to be erased (%s), erasing...", esp_err_to_name(nvs_ret));
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        nvs_ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(nvs_ret);
     ESP_LOGI(TAG, "NVS flash initialized");
     
     // Initialize configuration system
@@ -157,16 +168,25 @@ void app_main(void)
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "Network connection failed with error: 0x%x", ret);
             ESP_LOGI(TAG, "Starting provisioning mode...");
-            
-            // Failed to connect, start provisioning
+
+            // Failed to connect, start provisioning. WiFi is already
+            // initialised and started by polverine_connect(); calling
+            // esp_wifi_init() again returns ESP_ERR_INVALID_STATE on
+            // IDF 6.x and would abort. Tear down the STA connect attempt
+            // and let provisioning_start() switch the mode to AP.
+            wifi_sta_do_disconnect();
             esp_netif_create_default_wifi_ap();
-            wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-            ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-            
+
             provisioning_start(shortId);
-            
-            // Keep the provisioning running
-            while (provisioning_is_active()) {
+
+            // Credentials exist, so the outage may be on the AP's side:
+            // keep the portal up for at most 10 minutes, then reboot and
+            // retry the stored network instead of parking here forever.
+            for (int portal_s = 0; provisioning_is_active(); ++portal_s) {
+                if (portal_s >= 600) {
+                    ESP_LOGW(TAG, "Provisioning portal idle for 10 min with stored credentials - rebooting to retry WiFi");
+                    esp_restart();
+                }
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
         } else {

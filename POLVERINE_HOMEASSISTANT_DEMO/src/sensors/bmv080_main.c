@@ -24,7 +24,7 @@ static char buffer[256] = {0};
 //  gpio_hold_en(B_LED_PIN);
 
 
-  snprintf(buffer,256,"{\"ID\":\"%s\",\"R\":%.1f,\"PM10\":%.0f,\"PM25\":%.0f,\"PM1\":%.0f,\"obst\":\"%s\",\"omr\":\"%s\",\"dcp\":%d}\n", shortId,
+  snprintf(buffer,256,"{\"ID\":\"%s\",\"TS\":%.1f,\"PM10\":%.0f,\"PM25\":%.0f,\"PM1\":%.0f,\"obst\":\"%s\",\"omr\":\"%s\",\"dcp\":%d}\n", shortId,
         bmv080_output.runtime_in_sec, bmv080_output.pm10_mass_concentration, bmv080_output.pm2_5_mass_concentration, bmv080_output.pm1_mass_concentration,
         (bmv080_output.is_obstructed ? "yes" : "no"), (bmv080_output.is_outside_measurement_range ? "yes" : "no"),
         PLVN_CFG_BMV080_DUTY_CYCLE_PERIOD_S);
@@ -93,29 +93,23 @@ void bmv080_task(void *pvParameter)
   {
     printf("Resetting BMV080 sensor unit failed with BMV080 status %d\r\n", (int)bmv080_current_status);
     gpio_set_level(R_LED_PIN, 1);
-    gpio_hold_en(R_LED_PIN);
     while (1);
   }
   gpio_set_level(G_LED_PIN, 1);
-  gpio_hold_en(G_LED_PIN);
-  bmv080_delay(1);
+  bmv080_delay(100);
   gpio_set_level(G_LED_PIN, 0);
-  gpio_hold_en(G_LED_PIN);
 
-   /*********************************************************************************************************************
-    * Running a particle measurement in duty cycling mode
-    *********************************************************************************************************************/
-    /* Get default parameter "duty_cycling_period" */
+   /* --- duty-cycling particle measurement ---------------------------- */
+    /* Read back the SDK default duty-cycling period, then program ours. */
     uint16_t duty_cycling_period = 0;
     bmv080_current_status = bmv080_get_parameter(handle, "duty_cycling_period", (void*)&duty_cycling_period);
 
-    printf("Default duty_cycling_period: %d s\r\n", duty_cycling_period);
+    printf("BMV080 default duty-cycling period: %d s\r\n", duty_cycling_period);
 
-    /* Set custom parameter "duty_cycling_period" */
     duty_cycling_period = PLVN_CFG_BMV080_DUTY_CYCLE_PERIOD_S;
     bmv080_current_status = bmv080_set_parameter(handle, "duty_cycling_period", (void*)&duty_cycling_period);
 
-    printf("Customized duty_cycling_period: %d s\r\n", duty_cycling_period);
+    printf("BMV080 duty-cycling period set to %d s\r\n", duty_cycling_period);
 
 
   /* Set high precision measurement algorithm before starting measurement */
@@ -135,14 +129,11 @@ void bmv080_task(void *pvParameter)
   {
     printf("Starting BMV080 failed with status %d\r\n", (int)bmv080_current_status);
     gpio_set_level(R_LED_PIN, 1);
-    gpio_hold_en(R_LED_PIN);
     while (1);
   }
   gpio_set_level(G_LED_PIN, 1);
-  gpio_hold_en(G_LED_PIN);
-  bmv080_delay(1);
+  bmv080_delay(100);
   gpio_set_level(G_LED_PIN, 0);
-  gpio_hold_en(G_LED_PIN);
 
 
 
@@ -155,6 +146,7 @@ void bmv080_task(void *pvParameter)
     {
       printf("Reading BMV080 failed with status %d\r\n", (int)bmv080_current_status);
       gpio_set_level(R_LED_PIN, 1);
+      bmv080_delay(100);
       gpio_set_level(R_LED_PIN, 0);
     }
   }

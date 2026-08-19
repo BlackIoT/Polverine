@@ -1,3 +1,5 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
 #include "driver/usb_serial_jtag.h"
 #include <stdio.h>
@@ -14,10 +16,10 @@ void parse(const char *buffer)
     printf("In Topic\r\n");
        topic_store_write(&buffer[6]); 
     }
-    else if(!strncmp(buffer,"MQTT=",6))
+    else if(!strncmp(buffer,"MQTT=",5))
     {
     printf("In MQTT\r\n");
-       mqtt_store_write(&buffer[6]); 
+       mqtt_store_write(&buffer[5]);
     }
 }
 
@@ -31,17 +33,18 @@ void usb_task(void *)
 
     uint8_t buf[BUFFER_SIZE];
     while (1) {
-        // Read from USB CDC
-        int len = usb_serial_jtag_read_bytes(buf, BUFFER_SIZE, 0);
+        // Read from USB CDC. Blocking read: a zero-timeout poll every tick
+        // kept the CPU busy and defeated auto light sleep. BUFFER_SIZE - 1
+        // leaves room for the NUL terminator below.
+        int len = usb_serial_jtag_read_bytes(buf, BUFFER_SIZE - 1, portMAX_DELAY);
         if (len > 0) {
             ESP_LOGI("USB", "Received %d bytes: %.*s", len, len, buf);
-            
+
             // Write back to USB CDC
             usb_serial_jtag_write_bytes(buf, len, portMAX_DELAY);
             buf[len] = 0;
             parse((char *)buf);
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
