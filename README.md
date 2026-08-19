@@ -32,12 +32,14 @@ Then enter  `https://github.com/BlackIoT/Polverine.git` to connect to BlackIoT P
 Reference:
 [Custom embedded board](https://docs.platformio.org/en/stable/platforms/creating_board.html)
 
-The custom embedded board JSON file for polverine board to be used in PlatoformIO environmentis in folder /boards .
+The custom embedded board JSON file for the polverine board to be used in the PlatformIO environment is `boards/polverine.json` in this repository.
+
+The manual copy below is needed for **POLVERINE_BLINK**, **POLVERINE_DEMO**, **POLVERINE_FULL_MQTT_DEMO** and **POLVERINE_FULL_BLE_DEMO**. **POLVERINE_HOMEASSISTANT_DEMO** ships its own copy and sets `boards_dir = boards` in its `platformio.ini`, so it builds without this step.
 
 1) Create `boards` directory in core_dir if it doesn’t exist.
     - in Windows: `%HOMEPATH%\.platformio`
     - in Linux: `~/.platformio`
-2) Copy `polverine.json` file in this boards directory.
+2) Copy `boards/polverine.json` from this repository into that boards directory.
 3) Search available boards via `pio boards` command. You should see `polverine` board.
 
 Now, you can use `polverine` for the board option in “platformio.ini” (Project Configuration File).
@@ -87,6 +89,8 @@ The same rule applies to `bsec_integration.c` / `bsec_integration.h`: they deriv
 python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py
 ```
 
+The remaining sensor glue in the demos - `bmv080_io.{c,h}` (SPI bridge for the BMV080 SDK) and `bme690_main.c` (BME690/BSEC task) - is BlackIoT-authored code written against the Bosch SDK APIs; it contains no Bosch source and is tracked here under the repository's MIT licence.
+
 **Full step-by-step staging instructions: [deps/bosch-sensortec/README.md](/deps/bosch-sensortec/README.md).**
 
 The sensor demos refuse to build until staging is complete; `before_build.py` names the exact missing file and how to obtain it.
@@ -127,9 +131,9 @@ If the USB port is not responding (for example the MCU is in low power state) th
 When in bootloader mode the RGB led is lit.
 
 # NodeRed Flows
-Two NodeRed flows are saved in the nodered folder.
+Four Node-RED flows are saved in the [nodered](./nodered) folder: `server_flows.json`, `server_with_dashboards.json`, `client_flows.json` and `client_rt_flows.json`.
 
-Refer to the [README](./nodered/README.md) file in nodered folder for flows description.
+Refer to the [README](./nodered/README.md) file in the nodered folder for the file -> purpose map and flow descriptions.
 
 # MongoDB Database
 

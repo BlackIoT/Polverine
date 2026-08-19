@@ -11,14 +11,14 @@ The system also benefits from the latest SDK for the BMV080 sensor, which is now
 - Temperature
 - Relative Humidity
 - Barometric Pressure
-- Volatile Organic Compounds (V.O.C.)
+- Total Volatile Organic Compounds (TVOC, reported in ppb in the `VOC` JSON field)
 - Particulate Matter 10 (PM10)
 - Particulate Matter 2.5 (PM2.5)
 - Particulate Matter 1 (PM1)
 
 ### Data Visualization Made Easy
 
-To facilitate data analysis and visualization, a separate NodeRed ["RealTime Flows"]((../nodered/client_rt_flows.json)) interface has been developed. This interface collects data from USB connection and plots data in real time. 
+To facilitate data analysis and visualization, a separate NodeRed ["RealTime Flows"](../nodered/client_rt_flows.json) interface has been developed. This interface collects data from USB connection and plots data in real time. 
 ![](../images/client_flow_realtime.png)
 
 ![](../images/client_dash_realtime.png)
@@ -45,7 +45,7 @@ python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py
 > BSEC **3.2.1.0 and older will not build**: the library tree moved from `algo/bsec_IAQ/` to `release_bin/IAQ/` in 3.3.0.0.
 
 ### Firmware Upload
-The POLVERINE_DEMO puts the ESP32-S3 MCU in low power mode that disables USB. To upload the firmware using USB port you must put Polverine in boot mode: 
+The POLVERINE_DEMO enables automatic light sleep on the ESP32-S3, and while the chip is in light sleep the native USB port does not respond to the host, so the upload tool may fail to find or reset the board. To upload the firmware using USB port you must put Polverine in boot mode: 
 
 1. press boot button (SW1 - BOOT)
 2. press reset button (SW2 - EN)
@@ -60,10 +60,10 @@ When in bootloader mode the RGB led is lit.
 
 ### Low Power Mode
 
-The application is using ESP32 Low Power Mode. To use full power mode comment out the call to:
+The application uses ESP32 power management: `pm_init()` (in `src/main.c`, called from `app_main()`) clamps the CPU at 80 MHz and enables automatic light sleep (`CONFIG_FREERTOS_USE_TICKLESS_IDLE=y`). While the firmware is actively streaming sensor JSON the frequent task wake-ups keep the chip mostly awake, but whenever it does enter light sleep the USB-Serial-JTAG port drops off the host — hence the manual boot-mode procedure above for uploading.
+
+To run at full power (and keep the USB port always available) comment out the call to:
 
 	pm_init();
 
-in /src/main.c, in function main(), line 89
-
-USB Transmission interferes with Low power mode, enabling Light Sleep in ESP32 is ineffective.
+in `src/main.c`, in function `app_main()`.

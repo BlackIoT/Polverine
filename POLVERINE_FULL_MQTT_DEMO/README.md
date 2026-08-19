@@ -11,7 +11,7 @@ The system also benefits from the latest SDK for the BMV080 sensor, which is now
 - Temperature
 - Relative Humidity
 - Barometric Pressure
-- Volatile Organic Compounds (V.O.C.)
+- Total Volatile Organic Compounds (TVOC, in ppb)
 - Particulate Matter 10 (PM10)
 - Particulate Matter 2.5 (PM2.5)
 - Particulate Matter 1 (PM1)
@@ -62,7 +62,8 @@ To make the application work correctly in your environment you must customize so
 	- uri : MQTT broker address
 	- user : username to have access to MQTT broker
 	- pwd : password assigned to the user
-	- clientid : you can use the %s placeholder to have a unique ID or specify your own .
+
+	(the `clientid` field is stored but currently not used: the firmware lets the MQTT client library generate its own client ID)
 
 - you can customize MQTT topics changing the values in TEMPLATE_POLVERINE_TOPIC .
 
@@ -70,8 +71,7 @@ To make the application work correctly in your environment you must customize so
 
 	- bmv080 : MQTT topic to publish BMV080 sensor data
 	- bme690 : MQTT topic to publish BME690 sensor data
-	- sys: MQTT topic to publish Polverine system data
-	- cmd : MQTT topic to subscribe to commands sent to the device
+	- cmd : MQTT topic the device subscribes to; received messages are only echoed to the console (no command handling is implemented)
 
 the %s placeholder is dynamically substituted with the unique ID of the device, i.e. with the 6 terminating characters of the MAC address of the device.
 
