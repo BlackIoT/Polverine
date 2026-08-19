@@ -27,7 +27,7 @@ static char buffer[256] = {0};
 float temperature;
   temperature_sensor_get_celsius(temp_sensor, &temperature);
 
-  snprintf(buffer,256,"{\"ID\":\"%s\",\"R\":%.1f,\"PM10\":%.0f,\"PM25\":%.0f,\"PM1\":%.0f,\"obst\":\"%s\",\"omr\":\"%s\",\"T\":%.1f, \"dcp\":%d}\n", shortId,
+  snprintf(buffer,256,"{\"ID\":\"%s\",\"TS\":%.1f,\"PM10\":%.0f,\"PM25\":%.0f,\"PM1\":%.0f,\"obst\":\"%s\",\"omr\":\"%s\",\"T\":%.1f, \"dcp\":%d}", shortId,
         bmv080_output.runtime_in_sec, bmv080_output.pm10_mass_concentration, bmv080_output.pm2_5_mass_concentration, bmv080_output.pm1_mass_concentration,
         (bmv080_output.is_obstructed ? "yes" : "no"), (bmv080_output.is_outside_measurement_range ? "yes" : "no"),
         temperature, PLVN_CFG_BMV080_DUTY_CYCLE_PERIOD_S);

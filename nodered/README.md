@@ -9,6 +9,17 @@
 | `client_flows.json` | Client side. History dashboards (single sensor, multi sensor, OpenWeather) reading back from the MongoDB collections above. |
 | `client_rt_flows.json` | Client side, no broker or database. Real-time plot from the USB console stream of POLVERINE_DEMO: `serial in` on `/dev/ttyACM0` at 230400 baud, JSON frames split by topic (`bme690` / `bmv080`). |
 
+### Required palette nodes
+
+Install via *Manage palette* before importing (note the two dashboard generations — they are different packages):
+
+| Flow | Palette nodes |
+|---|---|
+| `server_flows.json` | `node-red-contrib-mongodb4`, `node-red-node-openweathermap` |
+| `server_with_dashboards.json` | the two above + legacy `node-red-dashboard` (Dashboard 1.x — this flow still uses `ui_base`/`ui_chart`) |
+| `client_flows.json` | `node-red-contrib-mongodb4`, `@flowfuse/node-red-dashboard` (Dashboard 2.0), `node-red-contrib-moment` |
+| `client_rt_flows.json` | `node-red-node-serialport`, `@flowfuse/node-red-dashboard` (Dashboard 2.0) |
+
 > **VOC unit change (BSEC 3.3.0.0).** Since the BSEC 3.3.0.0 migration the firmware publishes `VOC` as TVOC equivalent in **ppb** (`BSEC_OUTPUT_TVOC_EQUIVALENT`); before it was breath-VOC equivalent in **ppm**. The flows in this folder now pass the value through and label it `TVOC (ppb)`. Flows exported before the migration assumed VOC in ppm (the dashboard flow multiplied it by 1000), and any history recorded in MongoDB before the migration is breath-VOC in ppm, so a 1000x step in the `VOC` field marks the firmware change.
 
 ### Server flow

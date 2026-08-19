@@ -15,7 +15,7 @@ The messages are formatted in JSON, for example:
 "topic":"bmv080",
 "data":{
 		"ID": "54ADD8",
-		"R": 9131.2,
+		"TS": 9131.2,
 		"PM10": 32,
 		"PM25": 24,
 		"PM1": 11,
@@ -33,7 +33,9 @@ The messages are formatted in JSON, for example:
 "topic":"bme690",
 "data":{	
 	  "ID": "54ADD8",
-	  "R": 8556.60,
+	  "TS": 8556.60,
+	  "R": 512345.00,
+	  "rawT": 34.10,
 	  "T": 6.25,
 	  "P": 98956.57,
 	  "H": 98.75,
@@ -45,7 +47,7 @@ The messages are formatted in JSON, for example:
 }
 ```
 
-Field notes: `R` is the BSEC timestamp in seconds since boot, `T` is the compensated air temperature in °C, `P` the raw pressure in Pa, `H` the compensated relative humidity in %, `IAQ` the Index of Air Quality, `ACC` the IAQ accuracy (0–3, published as a moving average so it appears with decimals), `CO2` the CO₂ equivalent in ppm and `VOC` the **TVOC equivalent in ppb** (not ppm). All values except `ID` are moving averages over the publish window. In the `bmv080` message `R` is the sensor runtime in seconds and `T` is the ESP32-S3 die temperature in °C (not the air temperature).
+Field notes: `TS` is the BSEC timestamp in seconds since boot, `R` the raw MOX gas resistance in ohm, `rawT` the raw die temperature in °C, `T` is the compensated air temperature in °C, `P` the raw pressure in Pa, `H` the compensated relative humidity in %, `IAQ` the Index of Air Quality, `ACC` the IAQ accuracy (0–3, published as a moving average so it appears with decimals), `CO2` the CO₂ equivalent in ppm and `VOC` the **TVOC equivalent in ppb** (not ppm). All values except `ID` are moving averages over the publish window. In the `bmv080` message `TS` is the sensor runtime in seconds and `T` is the ESP32-S3 die temperature in °C (not the air temperature).
 
 > **BLE MTU note:** the JSON frames are up to ~143 bytes long, but a BLE notification carries at most `MTU - 3` bytes. The client must **enable notifications** on the data characteristic and **negotiate an MTU of at least 150** to receive each frame in a single notification; with the default MTU (23) the firmware splits every frame into `MTU - 3`-byte chunks that the client has to reassemble.
 

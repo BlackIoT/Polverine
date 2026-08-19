@@ -44,6 +44,8 @@ The manual copy below is needed for **POLVERINE_BLINK**, **POLVERINE_DEMO**, **P
 
 Now, you can use `polverine` for the board option in “platformio.ini” (Project Configuration File).
 
+> **Linux:** install PlatformIO's udev rules once (`https://docs.platformio.org/en/stable/core/installation/udev-rules.html`) or the serial port `/dev/ttyACM0` will not be accessible for upload/monitor without root.
+
 ### Debug the Polverine
 
 The ESP-S3 MCU supports native JTAG debugging using the USB port on Polverine.

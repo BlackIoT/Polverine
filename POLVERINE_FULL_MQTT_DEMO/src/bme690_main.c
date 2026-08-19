@@ -80,6 +80,8 @@ void i2c_deinit(void)
 ESP_ERROR_CHECK(i2c_del_master_bus(bus_handle));
 }
 
+sensorbuffer aveR;      /* raw MOX gas resistance (issue #30) */
+sensorbuffer aveRawT;   /* raw die temperature */
 sensorbuffer aveT;
 sensorbuffer aveP;
 sensorbuffer aveH;
@@ -92,6 +94,8 @@ void bme690_task(void *)
 {
     i2c_init();
 
+    sb_init(&aveR,60);
+    sb_init(&aveRawT,60);
     sb_init(&aveT,60);
     sb_init(&aveP,60);
     sb_init(&aveH,60);
@@ -213,6 +217,8 @@ static char buffer[600];
   //gpio_hold_en(G_LED_PIN);
   //gpio_deep_sleep_hold_en();
 
+  sb_add(&aveR,output->raw_gas);
+  sb_add(&aveRawT,output->raw_temp);
   sb_add(&aveT,output->compensated_temperature);
   sb_add(&aveP,output->raw_pressure);
   sb_add(&aveH,output->compensated_humidity);
@@ -227,10 +233,13 @@ static char buffer[600];
 //    if(demult++ >= 20)
 
     if (!PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080) {
-        snprintf(buffer, sizeof(buffer),"{\"ID\":\"%s\",\"R\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
-                "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}\n",
+        /* issue #30: "R" used to carry the timestamp. Now TS = seconds since
+         * boot, R = raw MOX gas resistance [ohm], rawT = raw die temperature.
+         * issue #28: no trailing \n in MQTT payloads. */
+        snprintf(buffer, sizeof(buffer),"{\"ID\":\"%s\",\"TS\":%.2f,\"R\":%.2f,\"rawT\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
+                "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}",
                 shortId,
-                (float)(output->timestamp/1000000)/1000., output->compensated_temperature, output->raw_pressure, output->compensated_humidity,
+                (float)(output->timestamp/1000000)/1000., output->raw_gas, output->raw_temp, output->compensated_temperature, output->raw_pressure, output->compensated_humidity,
                 (float)output->iaq, (float)output->iaq_accuracy, output->co2_equivalent, output->tvoc_equivalent,
                 extTempOffset, PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080, PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS);
 
@@ -250,10 +259,10 @@ static char buffer[600];
 
         if(flBMV080Published || bmv080_timeout)
         {
-            snprintf(buffer, sizeof(buffer),"{\"ID\":\"%s\",\"R\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
-                    "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}\n",
+            snprintf(buffer, sizeof(buffer),"{\"ID\":\"%s\",\"TS\":%.2f,\"R\":%.2f,\"rawT\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
+                    "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}",
                     shortId,
-                    (float)(output->timestamp/1000000)/1000., sb_average(&aveT), sb_average(&aveP), sb_average(&aveH),
+                    (float)(output->timestamp/1000000)/1000., sb_average(&aveR), sb_average(&aveRawT), sb_average(&aveT), sb_average(&aveP), sb_average(&aveH),
                     sb_average(&aveIAQ), sb_average(&aveACC), sb_average(&aveCO2), sb_average(&aveVOC),
                     extTempOffset, PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080, PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS);
 

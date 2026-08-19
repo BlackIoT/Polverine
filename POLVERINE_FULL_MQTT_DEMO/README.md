@@ -65,6 +65,12 @@ To make the application work correctly in your environment you must customize so
 
 	(the `clientid` field is stored but currently not used: the firmware lets the MQTT client library generate its own client ID)
 
+### Telemetry frame fields
+
+`polverine/<ID>/bme690`: `TS` BSEC timestamp in seconds since boot, `R` raw MOX gas resistance in ohm, `rawT` raw die temperature in °C, `T` compensated air temperature in °C, `P` raw pressure in Pa, `H` compensated relative humidity in %, `IAQ` Index of Air Quality, `ACC` IAQ accuracy 0–3, `CO2` CO₂ equivalent in ppm, `VOC` TVOC equivalent in **ppb**. In the gated publish path the values are moving averages over the publish window. (`R` carried the timestamp until 2026-08 — issue #30.)
+
+`polverine/<ID>/bmv080`: `TS` sensor runtime in seconds, `PM10`/`PM25`/`PM1` in µg/m³, `obst`/`omr` obstruction and out-of-range flags, `T` ESP32-S3 die temperature in °C (not air temperature), `dcp` duty-cycle period in seconds. MQTT payloads carry no trailing newline (issue #28).
+
 - you can customize MQTT topics changing the values in TEMPLATE_POLVERINE_TOPIC .
 
 		const char *TEMPLATE_POLVERINE_TOPIC = "{\"bmv080\":\"polverine/%s/bmv080\",\"bme690\":\"polverine/%s/bme690\",\"cmd\":\"polverine/%s/cmd\"}";
