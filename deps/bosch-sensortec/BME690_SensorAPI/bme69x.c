@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2024 Bosch Sensortec GmbH. All rights reserved.
+* Copyright (c) 2025 Bosch Sensortec GmbH. All rights reserved.
 *
 * BSD-3-Clause
 *
@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bme69x.c
-* @date       2024-05-14
-* @version    v1.0.1
+* @date       2026-01-30
+* @version    v1.1.0
 *
 */
 
@@ -51,10 +51,10 @@ static uint8_t calc_gas_wait(uint16_t dur);
 #ifndef BME69X_USE_FPU
 
 /* This internal API is used to calculate the temperature in integer */
-static int16_t calc_temperature(uint32_t temp_adc, struct bme69x_dev *dev, uint32_t *t_lin);
+static int16_t calc_temperature(uint32_t temp_adc, struct bme69x_dev *dev, int64_t *t_lin);
 
 /* This internal API is used to calculate the pressure in integer */
-static uint32_t calc_pressure(uint32_t pres_adc, uint32_t t_lin, const struct bme69x_dev *dev);
+static uint32_t calc_pressure(uint32_t pres_adc, int64_t t_lin, const struct bme69x_dev *dev);
 
 /* This internal API is used to calculate the humidity in integer */
 static uint32_t calc_humidity(uint16_t hum_adc, int16_t comp_temperature, const struct bme69x_dev *dev);
@@ -305,7 +305,6 @@ int8_t bme69x_soft_reset(struct bme69x_dev *dev)
 int8_t bme69x_set_conf(struct bme69x_conf *conf, struct bme69x_dev *dev)
 {
     int8_t rslt;
-    uint8_t odr20 = 0, odr3 = 1;
     uint8_t current_op_mode;
 
     /* Register data starting from BME69X_REG_CTRL_GAS_1(0x71) up to BME69X_REG_CONFIG(0x75) */
@@ -359,14 +358,6 @@ int8_t bme69x_set_conf(struct bme69x_conf *conf, struct bme69x_dev *dev)
             data_array[3] = BME69X_SET_BITS(data_array[3], BME69X_OST, conf->os_temp);
             data_array[3] = BME69X_SET_BITS(data_array[3], BME69X_OSP, conf->os_pres);
             data_array[1] = BME69X_SET_BITS_POS_0(data_array[1], BME69X_OSH, conf->os_hum);
-            if (conf->odr != BME69X_ODR_NONE)
-            {
-                odr20 = conf->odr;
-                odr3 = 0;
-            }
-
-            data_array[4] = BME69X_SET_BITS(data_array[4], BME69X_ODR20, odr20);
-            data_array[0] = BME69X_SET_BITS(data_array[0], BME69X_ODR3, odr3);
         }
     }
 
@@ -711,12 +702,42 @@ int8_t bme69x_get_heatr_conf(const struct bme69x_heatr_conf *conf, struct bme69x
 }
 
 /*
+ * @brief Internal helper to perform a single forced measurement with given heater config and delay
+ */
+static int8_t bme69x_forced_measurement(const struct bme69x_heatr_conf *heatr_conf,
+                                        struct bme69x_conf *conf,
+                                        uint32_t wait_time,
+                                        struct bme69x_data *data,
+                                        struct bme69x_dev *t_dev)
+{
+    int8_t rslt;
+    uint8_t n_fields;
+
+    rslt = bme69x_set_heatr_conf(BME69X_FORCED_MODE, heatr_conf, t_dev);
+    if (rslt == BME69X_OK)
+    {
+        rslt = bme69x_set_conf(conf, t_dev);
+        if (rslt == BME69X_OK)
+        {
+            rslt = bme69x_set_op_mode(BME69X_FORCED_MODE, t_dev); /* Trigger a measurement */
+            if (rslt == BME69X_OK)
+            {
+                /* Wait for the measurement to complete */
+                t_dev->delay_us(wait_time, t_dev->intf_ptr);
+                rslt = bme69x_get_data(BME69X_FORCED_MODE, data, &n_fields, t_dev);
+            }
+        }
+    }
+
+    return rslt;
+}
+
+/*
  * @brief This API performs Self-test of low and high gas variants of BME69X
  */
 int8_t bme69x_selftest_check(const struct bme69x_dev *dev)
 {
     int8_t rslt;
-    uint8_t n_fields;
     uint8_t i = 0;
     struct bme69x_data data[BME69X_N_MEAS] = { { 0 } };
     struct bme69x_dev t_dev;
@@ -749,31 +770,17 @@ int8_t bme69x_selftest_check(const struct bme69x_dev *dev)
         heatr_conf.enable = BME69X_ENABLE;
         heatr_conf.heatr_dur = BME69X_HEATR_DUR1;
         heatr_conf.heatr_temp = BME69X_HIGH_TEMP;
-        rslt = bme69x_set_heatr_conf(BME69X_FORCED_MODE, &heatr_conf, &t_dev);
+
+        rslt = bme69x_forced_measurement(&heatr_conf, &conf, BME69X_HEATR_DUR1_DELAY, &data[0], &t_dev);
         if (rslt == BME69X_OK)
         {
-            rslt = bme69x_set_conf(&conf, &t_dev);
-            if (rslt == BME69X_OK)
+            if ((data[0].idac != 0x00) && (data[0].idac != 0xFF) && (data[0].status & BME69X_GASM_VALID_MSK))
             {
-                rslt = bme69x_set_op_mode(BME69X_FORCED_MODE, &t_dev); /* Trigger a measurement */
-                if (rslt == BME69X_OK)
-                {
-                    /* Wait for the measurement to complete */
-                    t_dev.delay_us(BME69X_HEATR_DUR1_DELAY, t_dev.intf_ptr);
-                    rslt = bme69x_get_data(BME69X_FORCED_MODE, &data[0], &n_fields, &t_dev);
-                    if (rslt == BME69X_OK)
-                    {
-                        if ((data[0].idac != 0x00) && (data[0].idac != 0xFF) &&
-                            (data[0].status & BME69X_GASM_VALID_MSK))
-                        {
-                            rslt = BME69X_OK;
-                        }
-                        else
-                        {
-                            rslt = BME69X_E_SELF_TEST;
-                        }
-                    }
-                }
+                rslt = BME69X_OK;
+            }
+            else
+            {
+                rslt = BME69X_E_SELF_TEST;
             }
         }
 
@@ -789,22 +796,7 @@ int8_t bme69x_selftest_check(const struct bme69x_dev *dev)
                 heatr_conf.heatr_temp = BME69X_LOW_TEMP; /* Lower temperature */
             }
 
-            rslt = bme69x_set_heatr_conf(BME69X_FORCED_MODE, &heatr_conf, &t_dev);
-            if (rslt == BME69X_OK)
-            {
-                rslt = bme69x_set_conf(&conf, &t_dev);
-                if (rslt == BME69X_OK)
-                {
-                    rslt = bme69x_set_op_mode(BME69X_FORCED_MODE, &t_dev); /* Trigger a measurement */
-                    if (rslt == BME69X_OK)
-                    {
-                        /* Wait for the measurement to complete */
-                        t_dev.delay_us(BME69X_HEATR_DUR2_DELAY, t_dev.intf_ptr);
-                        rslt = bme69x_get_data(BME69X_FORCED_MODE, &data[i], &n_fields, &t_dev);
-                    }
-                }
-            }
-
+            rslt = bme69x_forced_measurement(&heatr_conf, &conf, BME69X_HEATR_DUR2_DELAY, &data[i], &t_dev);
             i++;
         }
 
@@ -821,7 +813,7 @@ int8_t bme69x_selftest_check(const struct bme69x_dev *dev)
 #ifndef BME69X_USE_FPU
 
 /* @brief This internal API is used to calculate the temperature value. */
-static int16_t calc_temperature(uint32_t temp_adc, struct bme69x_dev *dev, uint32_t *t_lin)
+static int16_t calc_temperature(uint32_t temp_adc, struct bme69x_dev *dev, int64_t *t_lin)
 {
     int64_t partial_data1;
     int64_t partial_data2;
@@ -831,20 +823,20 @@ static int16_t calc_temperature(uint32_t temp_adc, struct bme69x_dev *dev, uint3
     int64_t partial_data6;
     int64_t tem_comp;
 
-    partial_data1 = (int64_t)(temp_adc - (256U * dev->calib.par_t1));
-    partial_data2 = (int64_t)(partial_data1 * (int64_t)dev->calib.par_t2);
+    partial_data1 = (int64_t)(temp_adc - ((int64_t)BME69X_TEMPADC_SCALE * dev->calib.par_t1));
+    partial_data2 = (int64_t)(partial_data1 * dev->calib.par_t2);
     partial_data3 = (int64_t)(partial_data1 * partial_data1);
-    partial_data4 = (int64_t)(partial_data3 * (int64_t)dev->calib.par_t3);
-    partial_data5 = (int64_t)((int64_t)(partial_data2 * 262144UL) + partial_data4);
-    partial_data6 = (int64_t)(partial_data5 / 4294967296ULL);
-    *t_lin = (uint32_t)partial_data6;
-    tem_comp = (int64_t)((partial_data6 * 25U) / 16384UL);
+    partial_data4 = (int64_t)(partial_data3 * dev->calib.par_t3);
+    partial_data5 = (int64_t)((int64_t)(partial_data2 * BME69X_TEMPCOMP_SCALE1) + partial_data4);
+    partial_data6 = (int64_t)((int64_t)partial_data5 / (int64_t)BME69X_TEMPCOMP_SCALE2);
+    *t_lin = (int64_t)partial_data6;
+    tem_comp = (int64_t)((partial_data6 * BME69X_TEMPCOMP_SCALE3) / BME69X_TEMPCOMP_SCALE4);
 
     return (int16_t)(tem_comp);
 }
 
 /* @brief This internal API is used to calculate the pressure value. */
-static uint32_t calc_pressure(uint32_t pres_adc, uint32_t t_lin, const struct bme69x_dev *dev)
+static uint32_t calc_pressure(uint32_t pres_adc, int64_t t_lin, const struct bme69x_dev *dev)
 {
     int64_t partial_data1;
     int64_t partial_data2;
@@ -857,7 +849,7 @@ static uint32_t calc_pressure(uint32_t pres_adc, uint32_t t_lin, const struct bm
     int64_t press_comp;
     int64_t t_lin_64;
 
-    t_lin_64 = (int64_t)t_lin;
+    t_lin_64 = t_lin;
 
     partial_data1 = t_lin_64 * t_lin_64;
     partial_data2 = partial_data1 / 64;
@@ -902,9 +894,20 @@ static uint32_t calc_humidity(uint16_t hum_adc, int16_t comp_temperature, const 
     var_H =
         (((((hum_64 * 16384UL) - (dev->calib.par_h1 * 1048576UL) - (dev->calib.par_h2 * var_H)) + 16384UL) / 32768UL) *
          ((((((var_H * dev->calib.par_h4) / 1024UL) * ((var_H * dev->calib.par_h3) / 2048UL + 32768UL)) / 1024UL) +
-           2097152ULL) * dev->calib.par_h5 + 8192UL) / 16384UL);
+           2097152LL) * dev->calib.par_h5 + 8192UL) / 16384UL);
 
     var_H = var_H - (((((var_H / 32768UL) * (var_H / 32768UL)) / 128UL) * dev->calib.par_h6) / 16UL);
+
+    if (var_H < 0)
+    {
+        var_H = 0;
+    }
+
+    if (var_H > 419430400)
+    {
+        var_H = 419430400;
+    }
+
     hum_comp = (uint32_t)(var_H / 4096UL);
 
     return hum_comp;
@@ -960,7 +963,8 @@ static uint8_t calc_res_heat(uint16_t temp, const struct bme69x_dev *dev)
 /* @brief This internal API is used to calculate the temperature value. */
 static float calc_temperature(uint32_t temp_adc, const struct bme69x_dev *dev)
 {
-    int32_t do1, cf;
+    int32_t do1;
+    double cf;
     double dtk1, dtk2, temp1, temp2;
     double calc_temp;
 
@@ -968,7 +972,7 @@ static float calc_temperature(uint32_t temp_adc, const struct bme69x_dev *dev)
     dtk1 = (double)dev->calib.par_t2 / (double)(1ULL << 30);
     dtk2 = (double)dev->calib.par_t3 / (double)(1ULL << 48);
 
-    cf = temp_adc - do1;
+    cf = (double)temp_adc - (double)do1;
     temp1 = (double)(cf * dtk1);
     temp2 = (double)cf * (double)cf * dtk2;
 
@@ -1021,13 +1025,13 @@ static float calc_pressure(uint32_t pres_adc, float comp_temperature, const stru
     return (float)calc_pres;
 }
 
-/* This internal API is used to calculate the humidity in integer */
+/* This internal API is used to calculate the humidity in float */
 static float calc_humidity(uint16_t hum_adc, float comp_temperature, const struct bme69x_dev *dev)
 {
     double oh, tk10h, sh;
     double tk1sh, tk2sh, hlin2;
     double hoff, hsens;
-    double temp_comp, calc_hum, temp_var_1;
+    double temp_comp, calc_hum, hum_float_val;
 
     temp_comp = (comp_temperature * 5120) - 76800;
 
@@ -1040,8 +1044,24 @@ static float calc_humidity(uint16_t hum_adc, float comp_temperature, const struc
 
     hoff = (double)hum_adc - (oh + tk10h * temp_comp);
     hsens = hoff * sh * (1 + (tk1sh * temp_comp) + (tk1sh * tk2sh * temp_comp * temp_comp));
-    temp_var_1 = hsens * (1 - hlin2 * hsens);
-    calc_hum = temp_var_1;
+    hum_float_val = hsens * (1 - hlin2 * hsens);
+
+    /* Humidity Limit Implementation */
+    if (hum_float_val < 0.0)
+    {
+        hum_float_val = 0.0;
+    }
+    else if (hum_float_val >= 100.00)
+    {
+        hum_float_val = 100.0;
+    }
+    else
+    {
+        /* range with in the limit */
+        /* Do Nothing */
+    }
+
+    calc_hum = hum_float_val;
 
     return (float)calc_hum;
 }
@@ -1243,6 +1263,12 @@ static int8_t read_all_field_data(struct bme69x_data * const data[], struct bme6
 
         data[i]->status |= buff[off + 16] & BME69X_GASM_VALID_MSK;
         data[i]->status |= buff[off + 16] & BME69X_HEAT_STAB_MSK;
+
+        /* Clamp gas_index to valid range [0,9] to prevent out-of-bounds access */
+        if (data[i]->gas_index > 9)
+        {
+            data[i]->gas_index = 9;
+        }
 
         data[i]->idac = set_val[data[i]->gas_index];
         data[i]->res_heat = set_val[10 + data[i]->gas_index];
@@ -1721,8 +1747,23 @@ static int8_t get_calib_data(struct bme69x_dev *dev)
         /* Humidity related coefficients */
         dev->calib.par_h5 =
             (int16_t)(((int16_t)coeff_array[BME69X_IDX_S_H_MSB] << 4) | (coeff_array[BME69X_IDX_S_H_LSB] >> 4));
+
+        if (dev->calib.par_h5 > 2047)
+        {
+            /* Convert to negative value */
+            dev->calib.par_h5 = (int16_t)(dev->calib.par_h5 - 4096);
+        }
+
         dev->calib.par_h1 =
             (int16_t)(((int16_t)coeff_array[BME69X_IDX_O_H_MSB] << 4) | (coeff_array[BME69X_IDX_O_H_LSB] & 0x0F));
+
+        /* Check if the value is above 2047 */
+        if (dev->calib.par_h1 > 2047)
+        {
+            /* Convert to negative value */
+            dev->calib.par_h1 = (int16_t)(dev->calib.par_h1 - 4096);
+        }
+
         dev->calib.par_h2 = (int8_t)coeff_array[BME69X_IDX_TK10H_C];
         dev->calib.par_h4 = (int8_t)coeff_array[BME69X_IDX_par_h4];
         dev->calib.par_h3 = (uint8_t)coeff_array[BME69X_IDX_par_h3];

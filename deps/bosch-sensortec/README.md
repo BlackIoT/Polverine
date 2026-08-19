@@ -73,11 +73,15 @@ the zip.
 
 The demos use a modified version of Bosch's BSEC integration example. Those two
 files carry Bosch's *"All Rights Reserved. Confidential."* header, so this
-repository cannot ship them — not even patched, and not even as a unified diff
-(a diff quotes the original). Instead it ships only BlackIoT's *modifications*,
-as anchored search/replace edits inside
+repository does not ship them, pristine or patched. Instead it ships BlackIoT's
+*modifications* as anchored search/replace edits inside
 [`bsec_library_wrappers/apply_polverine_patches.py`](bsec_library_wrappers/apply_polverine_patches.py),
-and you regenerate the files from your own download:
+and you regenerate the files from your own download. To be precise about what
+that means: each anchor in the script is a short verbatim fragment of the Bosch
+example — a `#define`, a declaration, the few lines around an edit point — kept
+to the minimum needed to locate the edit and to fail loudly if Bosch changes
+that region. Together they quote a few dozen identifying lines and no
+algorithmic content; what is not shipped is the file itself.
 
 ```bash
 python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py
@@ -95,13 +99,15 @@ If any anchor no longer matches — wrong BSEC version, the BME688 example, or a
 future Bosch release that touched that region — the script aborts, names the
 failing edit, and writes nothing.
 
-Run `--help` for the options; `--src` / `--dst` override the paths, and
-`--drop-breath-voc` omits the compatibility edits described below.
+Run `--help` for the options; `--src` / `--dst` override the paths.
+`--with-breath-voc` additionally re-adds the `BSEC_OUTPUT_BREATH_VOC_EQUIVALENT`
+subscription (edits H5/H6/C2a/C2b/C4). It is off by default and is not usable
+for a working build — see the notes below.
 
 ## 4. Verify
 
 ```bash
-python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py   # every edit reports "ok"
+python3 deps/bosch-sensortec/bsec_library_wrappers/apply_polverine_patches.py   # every edit reports "ok" (the five breath-VOC edits report "skip")
 cd POLVERINE_DEMO && pio run                                                    # or any other demo
 ```
 
@@ -125,12 +131,18 @@ git check-ignore -v deps/bosch-sensortec/bsec_library_wrappers/bsec_integration.
 
 | Path | Licence | Why it is tracked |
 | --- | --- | --- |
-| `BME690_SensorAPI/` | BSD-3-Clause (see its `LICENSE`) | Bosch publishes it as open source; redistribution is permitted |
-| `bsec_library_wrappers/bsec_temp_offset_tab_target_board.h` | BlackIoT | Polverine's own self-heating compensation table |
+| `BME690_SensorAPI/` | BSD-3-Clause (see its `LICENSE`) | Bosch publishes it as open source; redistribution is permitted. Tracked at **BME69x SensorAPI v1.1.0** (2026-01-30), the copy the BSEC 3.3.0.0 zip ships under `examples/BME690/src/bme69x/` — see the version table below |
+| `bsec_library_wrappers/bsec_temp_offset_tab_target_board.h` | MIT (repository licence); contributed by Bosch Sensortec | Polverine board self-heating compensation tables (see the file header) |
 | `bsec_library_wrappers/apply_polverine_patches.py` | BlackIoT | the modifications described in step 3 |
 | `README.md` (this file) | BlackIoT | — |
 
 Everything else here is yours, staged locally, and stays out of git.
+
+Versions of the tracked Bosch open-source code:
+
+| Component | Version tracked here | Origin | Note |
+| --- | --- | --- | --- |
+| BME69x SensorAPI (`bme69x.c`, `bme69x.h`, `bme69x_defs.h`) | **v1.1.0** (2026-01-30) | `bsec_library_v3.x/examples/BME690/src/bme69x/` of the BSEC 3.3.0.0 zip, byte-identical | Bumped from v1.0.1 (2024-05-14). v1.1.0 sign-extends the 12-bit `par_h1`/`par_h5` humidity coefficients, clamps humidity to 0..100 % and `gas_index` to <= 9, widens `t_lin` to `int64_t`, and no longer programs the ODR (sequential-mode standby) bits in `bme69x_set_conf()` — BSEC drives the sensor in forced/parallel mode, which do not use them. Public API (prototypes and macros used by the demos) unchanged. |
 
 ---
 
@@ -162,12 +174,16 @@ Everything else here is yours, staged locally, and stays out of git.
 
   That is a 1000x change in magnitude in a field that kept its name. Anything
   downstream that assumed ppm — dashboards, alert thresholds, stored history —
-  must be rescaled or relabelled. The Home Assistant discovery message was
-  updated to declare `ppb` (`POLVERINE_HOMEASSISTANT_DEMO/src/connectivity/mqtt_main.c`);
-  the `nodered/` flows and `mongodb/` schema in the parent demo were **not**
-  touched and still assume ppm.
+  must be rescaled or relabelled. The Home Assistant discovery message declares
+  `ppb` (`POLVERINE_HOMEASSISTANT_DEMO/src/connectivity/mqtt_main.c`), and the
+  repository-level `nodered/` flows (the consumers of the FULL_MQTT_DEMO
+  stream) have been updated to label VOC in ppb; the `mongodb/` schema stores
+  the value unchanged, so history written before the upgrade is in ppm.
 
-  `--with-breath-voc` is kept only for building against BSEC 3.2.x.
+  `--with-breath-voc` re-adds the breath-VOC subscription for experimentation
+  only. It does not give you a BSEC 3.2.x build: the script's other anchors do
+  not match the 3.2.x example, and this repository is wired to the 3.3.0.0
+  layout throughout.
 - **Stored BSEC state.** `BSEC_MAX_STATE_BLOB_SIZE` shrank from 201 to 197 and
   `BSEC_MAX_PROPERTY_BLOB_SIZE` from 554 to 550. `POLVERINE_HOMEASSISTANT_DEMO`
   is the only demo that persists BSEC state in NVS (the other three have empty
@@ -179,4 +195,14 @@ Everything else here is yours, staged locally, and stays out of git.
   never sees it. Either way the old calibration is **silently discarded** and
   the sensor restarts its run-in. **Erase NVS once when upgrading**
   (`pio run -t erase`, or `idf.py erase-flash`) so this is explicit rather than
-  silent.
+  silent. On `POLVERINE_HOMEASSISTANT_DEMO` this also clears the stored WiFi
+  and MQTT provisioning (the `polverine_cfg` namespace; the BSEC calibration
+  state lives in `bme690`), so the board
+  comes back in provisioning mode — re-provision it afterwards.
+- **64-bit timestamps.** The generated `bsec_integration.h` declares
+  `typedef uint64_t (*get_timestamp_ms_fct)(void);` (edit H7) and the loop
+  multiplies that value into BSEC's int64 nanosecond timestamp (edit C12). Each
+  demo's `get_timestamp_ms()` must therefore return 64-bit milliseconds
+  (`esp_timer_get_time() / 1000`); a `uint32_t` implementation wraps after
+  49.7 days, after which the BME690 output stops, and it no longer matches the
+  callback type.

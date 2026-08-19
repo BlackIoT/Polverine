@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2024 Bosch Sensortec GmbH. All rights reserved.
+* Copyright (c) 2025 Bosch Sensortec GmbH. All rights reserved.
 *
 * BSD-3-Clause
 *
@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bme69x.h
-* @date       2024-05-14
-* @version    v1.0.1
+* @date       2026-01-30
+* @version    v1.1.0
 *
 */
 

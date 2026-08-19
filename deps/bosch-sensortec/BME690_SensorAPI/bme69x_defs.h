@@ -1,5 +1,5 @@
 /**
-* Copyright (c) 2024 Bosch Sensortec GmbH. All rights reserved.
+* Copyright (c) 2025 Bosch Sensortec GmbH. All rights reserved.
 *
 * BSD-3-Clause
 *
@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bme69x_defs.h
-* @date       2024-05-14
-* @version    v1.0.1
+* @date       2026-01-30
+* @version    v1.1.0
 *
 */
 
@@ -96,6 +96,13 @@
 #ifndef BME69X_PERIOD_POLL
 #define BME69X_PERIOD_POLL                        UINT32_C(10000)
 #endif
+
+/* Macros to calculate temperature*/
+#define BME69X_TEMPADC_SCALE                      256U
+#define BME69X_TEMPCOMP_SCALE1                    262144UL
+#define BME69X_TEMPCOMP_SCALE2                    4294967296ULL
+#define BME69X_TEMPCOMP_SCALE3                    25U
+#define BME69X_TEMPCOMP_SCALE4                    16384UL
 
 /* BME69X unique chip identifier */
 #define BME69X_CHIP_ID                            UINT8_C(0x61)
@@ -353,58 +360,58 @@
 /* Coefficient T3 position */
 #define BME69X_IDX_DTK2_C                         (2)
 
-/* Coefficient P1 LSB position */
+/* Coefficient P5 LSB position */
 #define BME69X_IDX_S_C_LSB                        (4)
 
-/* Coefficient P1 MSB position */
+/* Coefficient P5 MSB position */
 #define BME69X_IDX_S_C_MSB                        (5)
 
-/* Coefficient P2 LSB position */
+/* Coefficient P6 LSB position */
 #define BME69X_IDX_TK1S_C_LSB                     (6)
 
-/* Coefficient P2 MSB position */
+/* Coefficient P6 MSB position */
 #define BME69X_IDX_TK1S_C_MSB                     (7)
 
-/* Coefficient P3 position */
+/* Coefficient P7 position */
 #define BME69X_IDX_TK2S_C                         (8)
 
-/* Coefficient TK3S position */
+/* Coefficient P8 position */
 #define BME69X_IDX_TK3S_C                         (9)
 
-/* Coefficient P4 LSB position */
+/* Coefficient P1 LSB position */
 #define BME69X_IDX_O_C_LSB                        (10)
 
-/* Coefficient P4 MSB position */
+/* Coefficient P1 MSB position */
 #define BME69X_IDX_O_C_MSB                        (11)
 
-/* Coefficient P5 LSB position */
+/* Coefficient P2 LSB position */
 #define BME69X_IDX_TK10_C_LSB                     (12)
 
-/* Coefficient P5 MSB position */
+/* Coefficient P2 MSB position */
 #define BME69X_IDX_TK10_C_MSB                     (13)
 
-/* Coefficient P7 position */
+/* Coefficient P3 position */
 #define BME69X_IDX_TK20_C                         (14)
 
-/* Coefficient P6 position */
+/* Coefficient P4 position */
 #define BME69X_IDX_TK30_C                         (15)
 
-/* Coefficient P8 LSB position */
+/* Coefficient P9 LSB position */
 #define BME69X_IDX_NLS_C_LSB                      (18)
 
-/* Coefficient P8 MSB position */
+/* Coefficient P9 MSB position */
 #define BME69X_IDX_NLS_C_MSB                      (19)
 
-/* Coefficient P9 LSB position */
+/* Coefficient P10 position */
 #define BME69X_IDX_TKNLS_C                        (20)
 
-/* Coefficient P10 position */
+/* Coefficient P11 position */
 #define BME69X_IDX_NLS3_C                         (21)
 
-/* Coefficient H2 MSB position */
+/* Coefficient H5 MSB position */
 #define BME69X_IDX_S_H_MSB                        (23)
 
-/* Coefficient H2 LSB position */
+/* Coefficient H5 LSB position */
 #define BME69X_IDX_S_H_LSB                        (24)
 
 /* Coefficient H1 LSB position */
@@ -413,13 +420,13 @@
 /* Coefficient H1 MSB position */
 #define BME69X_IDX_O_H_MSB                        (25)
 
-/* Coefficient H3 position */
+/* Coefficient H2 position */
 #define BME69X_IDX_TK10H_C                        (26)
 
 /* Coefficient H4 position */
 #define BME69X_IDX_par_h4                         (27)
 
-/* Coefficient H5 position */
+/* Coefficient H3 position */
 #define BME69X_IDX_par_h3                         (28)
 
 /* Coefficient H6 position */
@@ -758,7 +765,7 @@ struct bme69x_data
     uint32_t gas_resistance;
 
     /*! Intermediate temperature co-efficient for pressure calculation */
-    uint32_t t_lin;
+    int64_t t_lin;
 #else
 
     /*! Temperature in degree celsius */

@@ -7,13 +7,17 @@ WHY THIS SCRIPT EXISTS
 The Polverine demos need a modified copy of Bosch's BSEC integration example
 (bsec_integration.c / bsec_integration.h).  Those files carry Bosch Sensortec's
 "All Rights Reserved. Confidential." header, and the licence forbids delivering
-the source to third parties, so this repository cannot ship them -- not even as
-a patched copy, and not even as a unified diff (a diff quotes context lines of
-the original).
+the source to third parties, so this repository does not ship them, patched or
+pristine.
 
-Instead, this repository ships only BlackIoT's *modifications*, expressed as a
-list of anchored search/replace edits, and this script re-applies them to the
-pristine files from YOUR OWN, licence-accepted Bosch BSEC download.
+Instead it ships BlackIoT's *modifications* as a list of anchored search/replace
+edits, and this script re-applies them to the pristine files from YOUR OWN,
+licence-accepted Bosch BSEC download.  Be clear about what that means: each
+anchor below is a short verbatim fragment of the Bosch example (a #define, a
+declaration, a few lines around the edit point) -- the minimum needed to locate
+the edit unambiguously and to fail loudly if Bosch changes that region.  Taken
+together they quote a few dozen identifying lines and no algorithmic content;
+what is not shipped is the file itself, which is the substantive part.
 
 INPUT
 -----
@@ -43,10 +47,11 @@ USAGE
     python3 apply_polverine_patches.py --src /path/to/bsec_iot_example --dst .
 
     --with-breath-voc   re-add BSEC_OUTPUT_BREATH_VOC_EQUIVALENT (edits
-                        H5/H6/C2a/C2b/C4).  BSEC 3.2.x ONLY -- see below.
+                        H5/H6/C2a/C2b/C4).  OFF by default; not usable with
+                        any shipped BSEC release -- see below.
 
-ABOUT --with-breath-voc  (do not use with BSEC 3.3.0.0)
--------------------------------------------------------
+ABOUT --with-breath-voc  (do not use for a normal build)
+--------------------------------------------------------
 Bosch removed BSEC_OUTPUT_BREATH_VOC_EQUIVALENT from the v3.3.0.0 example
 (struct field, subscription, demux case) and from the algorithm itself.  The
 enum value still exists in v3.3.0.0's bsec_datatypes.h, so re-adding the
@@ -63,8 +68,12 @@ group applied the log shows "BME690 ERROR while initializing BSEC library: -35"
 and no bme690 output is ever emitted; without it, "BME690 OK / BSEC Version :
 3.3.0.0" and samples flow.
 
-The group is therefore OFF by default and the demos use output->tvoc_equivalent,
-which is v3.3.0.0's replacement (subscribed automatically in LP mode).
+The group is therefore OFF by default and the demos read
+output->tvoc_equivalent, which is v3.3.0.0's replacement (subscribed
+automatically in LP mode) and is published in ppb.  The five edits are kept
+only for experimentation with the breath-VOC subscription: they cannot serve
+BSEC 3.2.x either, because this script's other anchors do not match the 3.2.x
+example (and the rest of the repository is wired to the 3.3.0.0 layout).
 
 LINE ENDINGS
 ------------
@@ -153,7 +162,7 @@ H_PATCHES = [
     ),
     Patch(
         "H5",
-        "compat: restore outputs_t.breath_voc_equivalent (all four demos read it)",
+        "optional: restore outputs_t.breath_voc_equivalent (the demos no longer read it)",
         T + "float co2_equivalent;\n" + T + "float gas_percentage;",
         T + "float co2_equivalent;\n"
         + T + "float breath_voc_equivalent;\n"
@@ -167,14 +176,22 @@ H_PATCHES = [
         "#define NUM_USED_OUTPUTS    UINT8_C(14)",
         group="breath_voc",
     ),
+    Patch(
+        "H7",
+        "get_timestamp_ms_fct returns 64-bit milliseconds (a uint32 wraps after 49.7 days)",
+        "typedef uint32_t (*get_timestamp_ms_fct)();",
+        "typedef uint64_t (*get_timestamp_ms_fct)(void);",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
 # bsec_integration.c
 # ---------------------------------------------------------------------------
 
-# BlackIoT's own code: maps the measured temperature to a board-specific
-# self-heating offset via the table in bsec_temp_offset_tab_target_board.h.
+# Polverine-specific helper (not Bosch SDK material -- contributed to this MIT
+# repository together with bsec_temp_offset_tab_target_board.h, see its header):
+# maps the measured temperature to a board-specific self-heating offset via
+# the tables in that file.
 C_TEMP_OFFSET_HELPER = "\n".join([
     '#include "bsec_temp_offset_tab_target_board.h"',
     "static float _get_board_specific_temp_offset(float temperature_raw) ",
@@ -308,7 +325,7 @@ C_PATCHES = [
     ),
     Patch(
         "C6",
-        "insert the board-specific temperature-offset helper (BlackIoT code)",
+        "insert the board-specific temperature-offset helper (Polverine code, not Bosch SDK)",
         "static uint8_t process_data(int64_t currTimeNs,",
         C_TEMP_OFFSET_HELPER + "static uint8_t process_data(int64_t currTimeNs,",
     ),
@@ -360,7 +377,7 @@ C_PATCHES = [
     ),
     Patch(
         "C11",
-        "yield inside the endless loop so the FreeRTOS idle/watchdog tasks can run",
+        "yield inside the endless loop (PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS, converted to ticks) so idle/watchdog tasks can run",
         T + "}\n" + T + "\n"
         "    while (1)\n"
         "    {\n"
@@ -368,8 +385,15 @@ C_PATCHES = [
         T + "}\n\n"
         "    while (1)\n"
         "    {\n"
-        "        vTaskDelay(PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS); // Minimum 1ms yield for ESP32\n"
+        "        vTaskDelay(pdMS_TO_TICKS(PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS)); // yield to FreeRTOS; the macro is in milliseconds\n"
         "        for (uint8_t sens_no = 0; sens_no < n_sensors; sens_no++)\n",
+    ),
+    Patch(
+        "C12",
+        "derive the BSEC int64 ns timestamp from the 64-bit ms callback (no 49.7-day wrap)",
+        T + T + "    time_stamp = get_timestamp_ms() * INT64_C(1000000);\n",
+        T + T + "    /* get_timestamp_ms() is 64-bit (H7): the ns product cannot wrap for ~292 years */\n"
+        + T + T + "    time_stamp = (uint64_t)get_timestamp_ms() * UINT64_C(1000000);\n",
     ),
 ]
 
@@ -448,9 +472,10 @@ def main():
     ap.add_argument("--dst", default=DEFAULT_DST,
                     help="output directory (default: next to this script)")
     ap.add_argument("--with-breath-voc", action="store_true",
-                    help="re-add BSEC_OUTPUT_BREATH_VOC_EQUIVALENT. BSEC 3.2.x "
-                         "only -- on 3.3.0.0 this makes bsec_iot_init() fail "
-                         "with BSEC_E_CONFIG_FEATUREMISMATCH (-35)")
+                    help="re-add BSEC_OUTPUT_BREATH_VOC_EQUIVALENT (experimental, "
+                         "off by default): on 3.3.0.0 this makes bsec_iot_init() "
+                         "fail with BSEC_E_CONFIG_FEATUREMISMATCH (-35), and the "
+                         "script cannot process 3.2.x sources")
     args = ap.parse_args()
     try:
         run(args.src, args.dst, breath_voc=args.with_breath_voc)
