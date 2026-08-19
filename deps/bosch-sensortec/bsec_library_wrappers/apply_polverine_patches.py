@@ -63,7 +63,7 @@ rejects the configuration at init with
      current library implementation or subscribed outputs"
 
 which aborts bsec_iot_init(), so the BME690 task never produces a single
-sample.  Verified on Polverine hardware (Rev C, MAC F0F5BD55333C): with the
+sample.  Verified on Polverine Rev C hardware: with the
 group applied the log shows "BME690 ERROR while initializing BSEC library: -35"
 and no bme690 output is ever emitted; without it, "BME690 OK / BSEC Version :
 3.3.0.0" and samples flow.
