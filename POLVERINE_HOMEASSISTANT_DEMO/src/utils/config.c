@@ -122,8 +122,8 @@ bool config_load_wifi(polverine_wifi_config_t *config)
     
     bool ssid_loaded = load_string_from_nvs(KEY_WIFI_SSID, config->ssid, 
                                             sizeof(config->ssid), DEFAULT_WIFI_SSID);
-    bool pass_loaded = load_string_from_nvs(KEY_WIFI_PASS, config->password, 
-                                            sizeof(config->password), DEFAULT_WIFI_PASS);
+    load_string_from_nvs(KEY_WIFI_PASS, config->password,
+                         sizeof(config->password), DEFAULT_WIFI_PASS);
     
     if (!ssid_loaded || strlen(config->ssid) == 0) {
         ESP_LOGE(TAG, "WiFi SSID not configured");

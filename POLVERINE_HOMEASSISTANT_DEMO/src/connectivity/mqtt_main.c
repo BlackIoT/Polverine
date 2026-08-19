@@ -163,6 +163,7 @@ static void send_ha_discovery()
         "\"device_class\":\"temperature\","
         "\"unit_of_measurement\":\"°C\","
         "\"value_template\":\"{{ value_json.temperature }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bme690_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -177,6 +178,7 @@ static void send_ha_discovery()
         "\"device_class\":\"humidity\","
         "\"unit_of_measurement\":\"%%\","
         "\"value_template\":\"{{ value_json.humidity }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bme690_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -191,6 +193,7 @@ static void send_ha_discovery()
         "\"device_class\":\"pressure\","
         "\"unit_of_measurement\":\"hPa\","
         "\"value_template\":\"{{ value_json.pressure | float / 100 }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bme690_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -204,6 +207,7 @@ static void send_ha_discovery()
         "\"availability_topic\":\"%s\","
         "\"unit_of_measurement\":\"IAQ\","
         "\"value_template\":\"{{ value_json.iaq }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bme690_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -218,6 +222,7 @@ static void send_ha_discovery()
         "\"device_class\":\"carbon_dioxide\","
         "\"unit_of_measurement\":\"ppm\","
         "\"value_template\":\"{{ value_json.co2 }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bme690_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -234,6 +239,7 @@ static void send_ha_discovery()
          * breath-VOC [ppm] this replaced. Do not "fix" this back to ppm. */
         "\"unit_of_measurement\":\"ppb\","
         "\"value_template\":\"{{ value_json.voc }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bme690_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -248,6 +254,7 @@ static void send_ha_discovery()
         "\"device_class\":\"pm10\","
         "\"unit_of_measurement\":\"µg/m³\","
         "\"value_template\":\"{{ value_json.pm10 }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bmv080_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -262,6 +269,7 @@ static void send_ha_discovery()
         "\"device_class\":\"pm25\","
         "\"unit_of_measurement\":\"µg/m³\","
         "\"value_template\":\"{{ value_json.pm25 }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bmv080_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -276,6 +284,7 @@ static void send_ha_discovery()
         "\"device_class\":\"pm1\","
         "\"unit_of_measurement\":\"µg/m³\","
         "\"value_template\":\"{{ value_json.pm1 }}\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, bmv080_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -394,6 +403,7 @@ static void send_ha_discovery()
         "\"unit_of_measurement\":\"dBm\","
         "\"value_template\":\"{{ value_json.rssi }}\","
         "\"icon\":\"mdi:wifi\","
+        "\"state_class\":\"measurement\","
         "\"device\":%s}",
         shortId, system_state_topic, availability_topic, device_str);
     esp_mqtt_client_publish(client, topic, payload, 0, 1, true);
@@ -616,66 +626,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
         isConnected = false;
-        
-        // Attempt to reconnect with shorter delay for better availability
-        ESP_LOGI(TAG, "Will attempt to reconnect in 2 seconds...");
-        vTaskDelay(pdMS_TO_TICKS(2000));
-        
-        // Get MQTT configuration for detailed logging
-        cJSON *uri_item = cJSON_GetObjectItemCaseSensitive(mqtt, "uri");
-        cJSON *user_item = cJSON_GetObjectItemCaseSensitive(mqtt, "user");
-        cJSON *pwd_item = cJSON_GetObjectItemCaseSensitive(mqtt, "pwd");
-        cJSON *clientid_item = cJSON_GetObjectItemCaseSensitive(mqtt, "clientid");
-        
-        if (uri_item && user_item && pwd_item && clientid_item) {
-            ESP_LOGI(TAG, "Attempting to reconnect to MQTT broker...");
-            ESP_LOGI(TAG, "  Broker URI: %s", uri_item->valuestring);
-            ESP_LOGI(TAG, "  Username: %s", user_item->valuestring);
-            ESP_LOGI(TAG, "  Password: %s", pwd_item->valuestring);
-            ESP_LOGI(TAG, "  Client ID: %s", clientid_item->valuestring);
-            
-            // Parse URI to show host and port separately
-            const char *uri = uri_item->valuestring;
-            if (strncmp(uri, "mqtt://", 7) == 0) {
-                const char *host_port = uri + 7;
-                char *colon = strchr(host_port, ':');
-                if (colon) {
-                    char host[256];
-                    int host_len = colon - host_port;
-                    strncpy(host, host_port, host_len);
-                    host[host_len] = '\0';
-                    const char *port = colon + 1;
-                    ESP_LOGI(TAG, "  Host: %s, Port: %s", host, port);
-                } else {
-                    ESP_LOGI(TAG, "  Host: %s, Port: 1883 (default)", host_port);
-                }
-            } else if (strncmp(uri, "mqtts://", 8) == 0) {
-                const char *host_port = uri + 8;
-                char *colon = strchr(host_port, ':');
-                if (colon) {
-                    char host[256];
-                    int host_len = colon - host_port;
-                    strncpy(host, host_port, host_len);
-                    host[host_len] = '\0';
-                    const char *port = colon + 1;
-                    ESP_LOGI(TAG, "  Host: %s, Port: %s (TLS)", host, port);
-                } else {
-                    ESP_LOGI(TAG, "  Host: %s, Port: 8883 (default TLS)", host_port);
-                }
-            } else {
-                ESP_LOGI(TAG, "  URI format: %s", uri);
-            }
-        } else {
-            ESP_LOGE(TAG, "MQTT configuration incomplete, cannot log connection details");
-        }
-        
-        esp_err_t err = esp_mqtt_client_reconnect(client);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initiate reconnection: %s", esp_err_to_name(err));
-        } else {
-            ESP_LOGI(TAG, "Reconnection initiated");
-            mqtt_connection_start_time = xTaskGetTickCount();
-        }
+
+        /* This handler runs in the esp-mqtt task: avoid long blocking work here
+         * (delays stall the client task) and do not call
+         * esp_mqtt_client_reconnect() -- esp-mqtt's built-in auto-reconnect
+         * (enabled by default) already retries on its own schedule. */
+        ESP_LOGI(TAG, "esp-mqtt auto-reconnect will retry the connection");
         break;
         
     case MQTT_EVENT_ERROR:
@@ -726,7 +682,9 @@ void mqtt_app_start(void)
     ESP_LOGI(TAG, "MQTT client configuration prepared:");
     ESP_LOGI(TAG, "  Broker URI: %s", mqtt_cfg.broker.address.uri);
     ESP_LOGI(TAG, "  Username: %s", mqtt_cfg.credentials.username);
-    ESP_LOGI(TAG, "  Password: %s", mqtt_cfg.credentials.authentication.password);
+    /* Never log the password itself */
+    ESP_LOGI(TAG, "  Password: %s", (mqtt_cfg.credentials.authentication.password
+             && mqtt_cfg.credentials.authentication.password[0]) ? "(set)" : "(empty)");
     ESP_LOGI(TAG, "  Client ID: %s", mqtt_cfg.credentials.client_id);
     ESP_LOGI(TAG, "  Keepalive: %d seconds", mqtt_cfg.session.keepalive);
     ESP_LOGI(TAG, "  Timeout: %d ms", mqtt_cfg.network.timeout_ms);

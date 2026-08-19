@@ -1,9 +1,15 @@
-/*!
- * @file bsec_iot_example.c
+/*
+ * Copyright (c) 2026 BlackIoT Sagl
+ * SPDX-License-Identifier: MIT
  *
- * @brief
- * Example for using of BSEC library in a fixed configuration with the BME68x sensor.
- * This works by running an endless loop in the bsec_iot_loop() function.
+ * BME690 task for POLVERINE_HOMEASSISTANT_DEMO: runs the Bosch BSEC 3.3.0.0
+ * IAQ library through the locally generated bsec_integration.{c,h} wrapper
+ * (see deps/bosch-sensortec/README.md), averages the fused outputs, hands
+ * the JSON record to bme690_publish() for Home Assistant and keeps the BSEC
+ * calibration state in NVS across reboots.
+ *
+ * Written against the BSEC 3.3.0.0 integration example API
+ * (bsec_integration.h); no Bosch source retained.
  */
 
 #include <stdio.h>
@@ -22,9 +28,8 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 
-#define SID_BME69X                      UINT16_C(0x093)
-#define SID_BME69X_X8                   UINT16_C(0x057)
 #define I2C_MASTER_SCL_IO           21      // GPIO number for I2C master clock
 #define I2C_MASTER_SDA_IO           14      // GPIO number for I2C master data
 #define I2C_MASTER_NUM              I2C_NUM_0   // I2C port number for master dev
@@ -36,10 +41,7 @@
 #define BME690_NVS_STATE_KEY        "bsec_state"
 #define BME690_STATE_SAVE_PERIOD_MS 3600000  // Save state every hour
 
-static uint8_t dev_addr[NUM_OF_SENS];
-uint8_t bme_cs[NUM_OF_SENS];
-extern uint8_t n_sensors;
-extern uint8_t *bsecInstance[NUM_OF_SENS];
+extern uint8_t *bsecInstance[NUM_OF_SENS];   /* BSEC instance memory, owned by bsec_integration.c */
 
 static i2c_master_dev_handle_t dev_handle;
 static i2c_master_bus_handle_t bus_handle;
@@ -47,25 +49,17 @@ static i2c_master_bus_handle_t bus_handle;
 extern void bme690_publish(const char *buffer);
 extern char shortId[7];
 
-/* BME communication methods */
-
+/* bme69x_dev bus hooks (BME690 SensorAPI callback types), installed by bme69x_interface_init() */
 static BME69X_INTF_RET_TYPE bme69x_i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);
-
 static BME69X_INTF_RET_TYPE bme69x_i2c_write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);
-
 static void bme69x_delay_us(uint32_t period, void *intf_ptr);
 
-/* Callback methods */
+/* Hooks passed to bsec_iot_init() and bsec_iot_loop(), in argument order (see the *_fct typedefs in bsec_integration.h) */
 static void bme69x_interface_init(struct bme69x_dev *bme, uint8_t intf, uint8_t sen_no);
-
 static uint32_t state_load(uint8_t *state_buffer, uint32_t n_buffer);
-
 static uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer);
-
-static uint32_t get_timestamp_ms();
-
 static void state_save(const uint8_t *state_buffer, uint32_t length);
-
+static uint64_t get_timestamp_ms(void);
 static void output_ready(outputs_t *output);
 
 void i2c_init(void)
@@ -116,37 +110,28 @@ void bme690_task(void *)
     sb_init(&aveCO2,60);
     sb_init(&aveVOC,60);
 
-    bsec_version_t version;
-    return_values_init ret = {BME69X_OK, BSEC_OK};
+    /* Probe the BME690, set up the BSEC instance (config blob, saved state, LP subscription). */
+    return_values_init ret = bsec_iot_init(SAMPLE_RATE, bme69x_interface_init, state_load, config_load);
 
-    ret = bsec_iot_init(SAMPLE_RATE, bme69x_interface_init, state_load, config_load);
+    ESP_LOGI("BME690", "BSEC initialized with LP sampling rate (one output every 3 s)");
 
-    ESP_LOGI("BME690", "BSEC initialized with CONTINUOUS sampling rate (1Hz)");
-
-	if (ret.bme69x_status != BME69X_OK) {
-		printf("ERROR while initializing BME68x: %d\r\n", ret.bme69x_status);
+    if (ret.bme69x_status != BME69X_OK) {
+        printf("POLVERINE BME690 ERROR while initializing the BME690: %d\r\n", ret.bme69x_status);
         return;
-	}
-	if (ret.bsec_status < BSEC_OK) {
-		printf("\nERROR while initializing BSEC library: %d\n", ret.bsec_status);
+    }
+    /* BSEC return codes: negative = error, positive = warning, 0 = OK */
+    if (ret.bsec_status < BSEC_OK) {
+        printf("POLVERINE BME690 ERROR while initializing BSEC library: %d\r\n", ret.bsec_status);
         return;
-	}
-	else if (ret.bsec_status > BSEC_OK) {
-		printf("\nWARNING while initializing BSEC library: %d\n", ret.bsec_status);
-	}
+    }
+    if (ret.bsec_status > BSEC_OK) {
+        printf("POLVERINE BME690 WARNING while initializing BSEC library: %d\r\n", ret.bsec_status);
+    }
 
-	ret.bsec_status = bsec_get_version(bsecInstance, &version);
+    bsec_version_t version = {0};
+    bsec_get_version(bsecInstance[0], &version);   /* NUM_OF_SENS == 1 */
+    printf("BME690 BSEC library %u.%u.%u.%u\r\n", version.major, version.minor, version.major_bugfix, version.minor_bugfix);
 
-    printf("BSEC Version : %u.%u.%u.%u\r\n",version.major,version.minor,version.major_bugfix,version.minor_bugfix);
-/*
-#if (OUTPUT_MODE == IAQ)
-    static char *header = "Time(ms), IAQ,  IAQ_accuracy, Static_IAQ, Raw_Temperature(degC), Raw_Humidity(%%rH), Comp_Temperature(degC),  Comp_Humidity(%%rH), Raw_pressure(Pa), Raw_Gas(ohms), Gas_percentage, CO2, TVOC(ppb), Stabilization_status, Run_in_status, Bsec_status\r\n";
-#else
-    static char *header = "Time(ms), Class/Target_1_prediction, Class/Target_2_prediction, Class/Target_3_prediction, Class/Target_4_prediction, Prediction_accuracy_1, Prediction_accuracy_2, Prediction_accuracy_3, Prediction_accuracy_4, Raw_pressure(Pa), Raw_Temperature(degC),  Raw_Humidity(%%rH), Raw_Gas(ohm), Raw_Gas_Index(num), Bsec_status\r\n";
-#endif
-
-    printf(header);
-*/
     bsec_iot_loop(state_save, get_timestamp_ms, output_ready);
 
     i2c_deinit();
@@ -155,9 +140,7 @@ void bme690_task(void *)
 
 static BME69X_INTF_RET_TYPE bme69x_i2c_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr)
 {
-    uint8_t device_addr = *(uint8_t*)intf_ptr;
-
-    (void)intf_ptr;
+    (void)intf_ptr;   /* single device: addressed through dev_handle */
 
     return i2c_master_transmit_receive(dev_handle, &reg_addr, 1, reg_data, len, -1);
 }
@@ -186,18 +169,18 @@ static void bme69x_delay_us(uint32_t period, void *intf_ptr)
 
 static void bme69x_interface_init(struct bme69x_dev *bme, uint8_t intf, uint8_t sen_no)
 {
-    if (bme == NULL)
+    /* Polverine has a single BME690 on I2C, so intf/sen_no add nothing here. */
+    (void)intf;
+    (void)sen_no;
+    if (bme == NULL) {
         return;
-
-    /* Bus configuration : I2C */
-        //dev_addr[sen_no] = BME69X_I2C_ADDR_LOW;
-        bme->read = bme69x_i2c_read;
-        bme->write = bme69x_i2c_write;
-        bme->intf = BME69X_I2C_INTF;
-        bme->delay_us = bme69x_delay_us;
-        bme->intf_ptr = 0; //&dev_addr[sen_no];
-        bme->amb_temp = 22; /* The ambient temperature in deg C is used for defining the heater temperature */
-
+    }
+    bme->intf = BME69X_I2C_INTF;
+    bme->read = bme69x_i2c_read;
+    bme->write = bme69x_i2c_write;
+    bme->delay_us = bme69x_delay_us;
+    bme->intf_ptr = NULL;   /* the I2C hooks reach the device through dev_handle */
+    bme->amb_temp = 22;     /* ambient estimate in deg C, feeds the heater set-point */
 }
 
 static uint32_t state_load(uint8_t *state_buffer, uint32_t n_buffer)
@@ -233,15 +216,18 @@ static uint32_t state_load(uint8_t *state_buffer, uint32_t n_buffer)
 
 static uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
 {
-	memcpy(config_buffer, bsec_config_iaq, n_buffer);
-    return n_buffer;
+    /* IAQ configuration blob (bme690_iaq_33v_3s_4d), compiled in from bsec_iaq.c. */
+    uint32_t n = (n_buffer < sizeof(bsec_config_iaq)) ? n_buffer : (uint32_t)sizeof(bsec_config_iaq);
+    memcpy(config_buffer, bsec_config_iaq, n);
+    return n;
 }
 
-static uint32_t get_timestamp_ms()
+static uint64_t get_timestamp_ms(void)
 {
-     uint32_t system_current_time = xTaskGetTickCount() * portTICK_PERIOD_MS;
-
-    return system_current_time;
+    /* 64-bit and derived from esp_timer: a 32-bit tick-based millisecond
+     * count wraps after 49.7 days, after which BSEC's next_call comparison
+     * fails and the BME690 output stops. */
+    return (uint64_t)esp_timer_get_time() / 1000ULL;
 }
 
 // Variables to track the latest state for forced saves
@@ -255,8 +241,8 @@ static void state_save(const uint8_t *state_buffer, uint32_t length)
 {
     nvs_handle_t nvs_handle;
     esp_err_t err;
-    static uint32_t last_save_time = 0;
-    uint32_t current_time = get_timestamp_ms();
+    static uint64_t last_save_time = 0;
+    uint64_t current_time = get_timestamp_ms();
     
     // Update the latest state buffer
     if (latest_state_buffer == NULL || latest_state_length < length) {
@@ -308,7 +294,7 @@ extern float extTempOffset;
 
 static void output_ready(outputs_t *output)
 {
-static char* buffer[600];
+static char buffer[600];
 static uint8_t last_iaq_accuracy = 0;
 static uint32_t startup_time = 0;
 static bool first_output = true;
@@ -366,7 +352,7 @@ static bool first_output = true;
 //    if(demult++ >= 20)
 
     if (!PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080) {
-        snprintf((char * __restrict__)buffer,600,"{\"ID\":\"%s\",\"R\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
+        snprintf(buffer, sizeof(buffer),"{\"ID\":\"%s\",\"R\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
                 "\"SIAQ\":%.2f,\"GASP\":%.2f,\"STAB\":%.0f,\"RUN\":%.0f,"
                 "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}\n",
                 shortId,
@@ -375,7 +361,7 @@ static bool first_output = true;
                 output->static_iaq, output->gas_percentage, output->stabStatus, output->runInStatus,
                 extTempOffset, PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080, PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS);
 
-        bme690_publish((const char *)buffer);
+        bme690_publish(buffer);
         
         // Log the sensor values
         ESP_LOGI("BME690", "Temperature: %.2f°C, Pressure: %.2f Pa, Humidity: %.2f%%", 
@@ -387,7 +373,7 @@ static bool first_output = true;
     } 
     else if(PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080 && flBMV080Published)
     {
-        snprintf((char * __restrict__)buffer,600,"{\"ID\":\"%s\",\"R\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
+        snprintf(buffer, sizeof(buffer),"{\"ID\":\"%s\",\"R\":%.2f,\"T\":%.2f,\"P\":%.2f,\"H\":%.2f,\"IAQ\":%.2f,\"ACC\":%.2f,\"CO2\":%.2f,\"VOC\":%.2f,"
                 "\"SIAQ\":%.2f,\"GASP\":%.2f,\"STAB\":%.0f,\"RUN\":%.0f,"
                 "\"mtof\":%.2f, \"bougb8\":%d, \"ltdt\":%d}\n",
                 shortId,
@@ -396,7 +382,7 @@ static bool first_output = true;
                 output->static_iaq, output->gas_percentage, output->stabStatus, output->runInStatus,
                 extTempOffset, PVLN_CFG_BSEC_OUTPUT_UPDATE_GATED_BY_BMV080, PLVN_CFG_BSEC_LOOP_DELAY_TIME_MS);
 
-        bme690_publish((const char *)buffer);
+        bme690_publish(buffer);
         
         // Log the averaged sensor values
         ESP_LOGI("BME690", "Averaged - Temp: %.2f°C, Press: %.2f Pa, Hum: %.2f%%", 
@@ -413,20 +399,6 @@ static bool first_output = true;
   //gpio_set_level(G_LED_PIN, 0);
   //gpio_hold_en(G_LED_PIN);
   //gpio_deep_sleep_hold_en();
-
-/*
-#if (OUTPUT_MODE == IAQ)
-    printf("%ld,%f,%u,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\r\n", (uint32_t)(output->timestamp/1000000),
-                output->iaq, output->iaq_accuracy, output->static_iaq, output->raw_temp, output->raw_humidity, output->compensated_temperature,
-                output->compensated_humidity, output->raw_pressure, output->raw_gas, output->gas_percentage, output->co2_equivalent,
-                output->tvoc_equivalent, output->stabStatus, output->runInStatus);
-#else
-    printf("%ld,%f,%f,%f,%f,%u,%u,%u,%u,%f,%f,%f,%f,%u\r\n", (uint32_t)(output->timestamp/1000000),
-                output->gas_estimate_1, output->gas_estimate_2, output->gas_estimate_3, output->gas_estimate_4,
-                output->gas_accuracy_1, output->gas_accuracy_2, output->gas_accuracy_3, output->gas_accuracy_4,
-                output->raw_pressure, output->raw_temp, output->raw_humidity, output->raw_gas, output->raw_gas_index);
-#endif
-*/
 }
 
 // Force save the latest BME690 state (used during shutdown)

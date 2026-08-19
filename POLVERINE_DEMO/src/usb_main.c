@@ -16,15 +16,16 @@ void usb_task(void *)
 
     uint8_t buf[BUFFER_SIZE];
     while (1) {
-        // Read from USB CDC
-        int len = usb_serial_jtag_read_bytes(buf, BUFFER_SIZE, 0);
+        // Read from USB CDC; block until data arrives instead of polling
+        // every tick (a 1-tick poll loop defeats automatic light sleep)
+        int len = usb_serial_jtag_read_bytes(buf, BUFFER_SIZE - 1, portMAX_DELAY);
         if (len > 0) {
+            buf[len] = '\0';
             ESP_LOGI("USB", "Received %d bytes: %.*s", len, len, buf);
-            
+
             // Write back to USB CDC
             usb_serial_jtag_write_bytes(buf, len, portMAX_DELAY);
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
     }
     vTaskDelete(NULL);
 }

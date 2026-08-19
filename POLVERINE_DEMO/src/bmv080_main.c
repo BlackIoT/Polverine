@@ -85,17 +85,14 @@ void bmv080_task(void *pvParameter)
     vTaskDelete(NULL);
   }
 
-   /*********************************************************************************************************************
-    * Running a particle measurement in duty cycling mode
-    *********************************************************************************************************************/
-    /* Get default parameter "duty_cycling_period" */
+   /* --- duty-cycling particle measurement ---------------------------- */
+    /* Read back the SDK default duty-cycling period, then program ours. */
     uint16_t duty_cycling_period = 0;
     bmv080_current_status = bmv080_get_parameter(handle, "duty_cycling_period", (void*)&duty_cycling_period);
 
     printf("BMV080 Default duty_cycling_period: %d s\r\n", duty_cycling_period);
 
-    /* Set custom parameter "duty_cycling_period" */
-    duty_cycling_period = 60;
+    duty_cycling_period = PLVN_CFG_BMV080_DUTY_CYCLE_PERIOD_S;
     bmv080_current_status = bmv080_set_parameter(handle, "duty_cycling_period", (void*)&duty_cycling_period);
 
     printf("BMV080 Customized duty_cycling_period: %d s\r\n", duty_cycling_period);

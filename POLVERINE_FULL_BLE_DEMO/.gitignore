@@ -3,13 +3,3 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-lib/bme69x/*
-lib/config/*
-lib/*.a
-include/bmv080_defs.h
-include/bmv080_example.h
-include/bmv080.h
-include/bsec_datatypes.h
-include/bsec_interface.h
-src/bsec_integration.c
-src/bsec_integration.h

@@ -8,9 +8,10 @@
 
 /* Selects the board self-heating compensation profile in
  * deps/bosch-sensortec/bsec_library_wrappers/bsec_temp_offset_tab_target_board.h.
- * The (client_id, duty_cycle) pair picks one tocp_cfg table; client_id tracks the
- * BOARD REVISION, so set it to match your hardware:
- *   0 -> tocp_cfg1/2, 1 -> tocp_cfg3/4, 2 -> tocp_cfg6/7 (Rev C).
+ * The (client_id, duty_cycle) pair picks one tocp_cfg table: client_id names a
+ * compensation profile (a set of temperature-offset polynomials, keyed together
+ * with the BMV080 duty-cycle period), NOT the board revision:
+ *   0 -> tocp_cfg1/2, 1 -> tocp_cfg3/4, 2 -> tocp_cfg6/7.
  * Without this define bsec_integration.c does not compile. An unmatched pair is
  * not fatal: the lookup returns 0 and no compensation is applied. */
 #define PLVN_CFG_TEMP_PROFILE_CLIENT_ID     2

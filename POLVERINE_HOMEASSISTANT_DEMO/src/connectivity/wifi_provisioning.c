@@ -113,21 +113,34 @@ static esp_err_t config_get_handler(httpd_req_t *req)
 static esp_err_t save_post_handler(httpd_req_t *req)
 {
     char buf[512];
-    int ret, remaining = req->content_len;
-    
-    if (remaining > sizeof(buf)) {
+    size_t remaining = req->content_len;
+    size_t received = 0;
+    int timeouts = 0;
+
+    /* >= keeps one byte free for the NUL terminator below (a full 512-byte
+     * POST used to write buf[512] one past the end of the buffer). */
+    if (remaining >= sizeof(buf)) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Content too long");
         return ESP_FAIL;
     }
-    
-    ret = httpd_req_recv(req, buf, remaining);
-    if (ret <= 0) {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive data");
-        return ESP_FAIL;
+
+    /* httpd_req_recv() may return fewer bytes than requested: loop until the
+     * whole body has been read. */
+    while (received < remaining) {
+        int ret = httpd_req_recv(req, buf + received, remaining - received);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts < 8) {
+                continue;   /* transient; a stalled client gives up after 8 */
+            }
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive data");
+            return ESP_FAIL;
+        }
+        received += ret;
     }
-    
-    buf[ret] = '\0';
-    ESP_LOGI(TAG, "Received configuration: %s", buf);
+
+    buf[received] = '\0';
+    /* Do not log buf: the form body carries the WiFi and MQTT passwords. */
+    ESP_LOGI(TAG, "Received configuration (%u bytes)", (unsigned)received);
     
     // Parse form data (URL encoded)
     polverine_wifi_config_t wifi_cfg = {0};

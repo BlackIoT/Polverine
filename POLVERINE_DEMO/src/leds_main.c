@@ -30,7 +30,6 @@ void configure_led(int pin, ledc_channel_t channel, ledc_timer_t timer)
         .speed_mode     = LEDC_MODE,
         .channel        = channel,
         .timer_sel      = timer,
-        .intr_type      = LEDC_INTR_DISABLE,
         .gpio_num       = pin,
         .duty           = 0,
         .hpoint         = 0

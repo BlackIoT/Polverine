@@ -400,6 +400,7 @@
          case ESP_GATTS_DISCONNECT_EVT:
              is_connected = false;
              enable_data_ntf = false;
+             spp_mtu_size = 23;  /* MTU is per-connection: fall back to the BLE default for the next client */
              esp_ble_gap_start_advertising(&spp_adv_params);
              break;
          case ESP_GATTS_OPEN_EVT:
@@ -462,9 +463,26 @@
 void ble_send_message(const char *message)
 {
     if (is_connected && enable_data_ntf) {
-        esp_ble_gatts_send_indicate(spp_gatts_if, spp_conn_id, spp_handle_table[SPP_IDX_SPP_DATA_NTY_VAL], strlen(message), (uint8_t *)message, false);
+        /* A notification carries at most (ATT_MTU - 3) payload bytes: slice the frame so
+         * a client that kept the default MTU of 23 still receives all of it (in chunks).
+         * Clients should negotiate an MTU >= 150 to get each JSON frame in one notification. */
+        size_t len = strlen(message);
+        size_t max_payload = (size_t)(spp_mtu_size - 3);
+        for (size_t offset = 0; offset < len; offset += max_payload) {
+            size_t chunk = len - offset;
+            if (chunk > max_payload) {
+                chunk = max_payload;
+            }
+            esp_err_t err = esp_ble_gatts_send_indicate(spp_gatts_if, spp_conn_id, spp_handle_table[SPP_IDX_SPP_DATA_NTY_VAL], chunk, (uint8_t *)&message[offset], false);
+            if (err != ESP_OK) {
+                /* congestion or teardown: drop the rest of this frame visibly
+                 * rather than sending a truncated tail later. */
+                ESP_LOGW(GATTS_TABLE_TAG, "notify failed (%s), frame dropped at %u/%u", esp_err_to_name(err), (unsigned)offset, (unsigned)len);
+                break;
+            }
+        }
     }
-}   
+}
 
 extern char shortId[7];
 
