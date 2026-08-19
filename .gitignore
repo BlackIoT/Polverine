@@ -32,6 +32,9 @@
 # from Bosch example code ("All Rights Reserved. Confidential.") and are
 # generated locally by bsec_library_wrappers/apply_polverine_patches.py from
 # your own BSEC download.  See deps/bosch-sensortec/README.md.
+# The demos' own sensor glue (bmv080_io.{c,h}, bme690_main.c) is BlackIoT code
+# written against the Bosch SDK APIs, contains no Bosch source, and is tracked
+# under the repository's MIT licence like the rest of the demo sources.
 # ---------------------------------------------------------------------------
 deps/bosch-sensortec/*
 !deps/bosch-sensortec/README.md
